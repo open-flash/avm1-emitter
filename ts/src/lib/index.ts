@@ -1,14 +1,26 @@
+import { WritableStream } from "@open-flash/stream";
+import { Action } from "avm1-tree";
+import { UintSize } from "semantic-types";
+import { emitAction } from "./emitters/avm1";
+
 export { emitAction } from "./emitters/avm1";
-//
-// import * as ast from "swf-tree";
-// import { CompressionMethod } from "swf-tree";
-// import { emitMovie } from "./emitters/movie";
-// import { Stream } from "./stream";
-//
-// export { ast };
-//
-// export function emitBytes(value: ast.Movie, compressionMethod: CompressionMethod = CompressionMethod.None): Uint8Array {
-//   const stream: Stream = new Stream();
-//   emitMovie(stream, value, compressionMethod);
-//   return stream.getBytes();
-// }
+
+export class Avm1Emitter {
+  private stream: WritableStream;
+
+  constructor() {
+    this.stream = new WritableStream();
+  }
+
+  getByteOffset(): UintSize {
+    return this.stream.bytePos;
+  }
+
+  writeAction(action: Action): void {
+    emitAction(this.stream, action);
+  }
+
+  getBytess(): Uint8Array {
+    return this.stream.getBytes();
+  }
+}
