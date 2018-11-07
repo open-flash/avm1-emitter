@@ -1,6 +1,6 @@
 {
   "name": "avm1-emitter",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "AVM1 files emitter",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
