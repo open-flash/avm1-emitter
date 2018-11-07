@@ -20,7 +20,7 @@ export class Avm1Emitter {
     emitAction(this.stream, action);
   }
 
-  getBytess(): Uint8Array {
+  getBytes(): Uint8Array {
     return this.stream.getBytes();
   }
 }
