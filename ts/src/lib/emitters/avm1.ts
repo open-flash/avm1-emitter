@@ -256,8 +256,8 @@ export function emitTryAction(byteStream: ByteStream, value: actions.Try): void 
   }
 
   byteStream.writeUint16LE(tryStream.bytePos);
-  byteStream.writeUint16LE(finallyStream !== undefined ? finallyStream.bytePos : 0);
   byteStream.writeUint16LE(catchStream !== undefined ? catchStream.bytePos : 0);
+  byteStream.writeUint16LE(finallyStream !== undefined ? finallyStream.bytePos : 0);
   emitCatchTarget(byteStream, value.catchTarget);
   byteStream.write(tryStream);
   if (catchStream !== undefined) {
