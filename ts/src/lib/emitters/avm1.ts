@@ -1,6 +1,12 @@
 import { WritableByteStream as ByteStream, WritableStream as Stream } from "@open-flash/stream";
-import { Action, ActionType, CatchTarget, CatchTargetType, GetUrl2Method, Value, ValueType } from "avm1-tree";
+import { Action } from "avm1-tree/action";
+import { ActionType } from "avm1-tree/action-type";
 import * as actions from "avm1-tree/actions/index";
+import { CatchTarget } from "avm1-tree/catch-target";
+import { CatchTargetType } from "avm1-tree/catch-targets/_type";
+import { GetUrl2Method } from "avm1-tree/get-url2-method";
+import { Value } from "avm1-tree/value";
+import { ValueType } from "avm1-tree/value-type";
 import { Incident } from "incident";
 import { Uint16, Uint2, Uint8, UintSize } from "semantic-types";
 
@@ -224,9 +230,9 @@ export function emitDefineFunction2Action(byteStream: ByteStream, value: actions
 
 function emitCatchTarget(byteStream: ByteStream, value: CatchTarget): void {
   if (value.type === CatchTargetType.Register) {
-    byteStream.writeUint8(value.register);
+    byteStream.writeUint8(value.target);
   } else {
-    byteStream.writeCString(value.variable);
+    byteStream.writeCString(value.target);
   }
 }
 

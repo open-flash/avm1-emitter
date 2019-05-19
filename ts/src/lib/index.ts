@@ -1,5 +1,5 @@
 import { WritableStream } from "@open-flash/stream";
-import { Action } from "avm1-tree";
+import { Action } from "avm1-tree/action";
 import { UintSize } from "semantic-types";
 import { emitAction } from "./emitters/avm1";
 
