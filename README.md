@@ -13,7 +13,6 @@
 AVM1 emitter implemented in Typescript (Node and browser).
 Converts [`avm1-tree` actions][avm1-tree] to bytes.
 
-- [Rust implementation](./rs/README.md)
 - [Typescript implementation](./ts/README.md)
 
 This library is part of the [Open Flash][ofl] project.

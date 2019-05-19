@@ -4,6 +4,7 @@ import { UintSize } from "semantic-types";
 import { emitAction } from "./emitters/avm1";
 
 export { emitAction } from "./emitters/avm1";
+export { cfgToBytes } from "./cfg-to-bytes";
 
 export class Avm1Emitter {
   private stream: WritableStream;
