@@ -701,6 +701,16 @@ avm1-tree@^0.2.0:
     semantic-types "^0.1.1"
     ts-tagged "^1.0.0"
 
+avm1-tree@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/avm1-tree/-/avm1-tree-0.4.0.tgz#9482982b400c1504aea1223608ee3853caa097c9"
+  integrity sha512-lbty2gVEtzU/vQfw6wUi877rqKk8TsKz+InYSJg48nplnEwUQwZhDXn1TPajRnXhRumMIuM/JIKtUQoYsYZ0Wg==
+  dependencies:
+    incident "^3.2.0"
+    kryo "^0.8.1"
+    semantic-types "^0.1.1"
+    ts-tagged "^1.0.0"
+
 bach@^1.0.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/bach/-/bach-1.2.0.tgz#4b3ce96bf27134f79a1b414a51c14e34c3bd9880"
@@ -3989,9 +3999,9 @@ sver-compat@^1.5.0:
     es6-symbol "^3.1.1"
 
 swf-parser@^0.5.3:
-  version "0.5.3"
-  resolved "https://registry.yarnpkg.com/swf-parser/-/swf-parser-0.5.3.tgz#3400e1fcb998f209a5631c1499411593b29a72e7"
-  integrity sha512-sUgGuL4hixIrC39/LMDJEGdPezQT3w1eLVRfxIkDYNh+AQlmN15m+uep6O3y5dJ0O4RPY6NjnZOZI8iYBf69wg==
+  version "0.5.4"
+  resolved "https://registry.yarnpkg.com/swf-parser/-/swf-parser-0.5.4.tgz#a1b52724c30f6d2cec07357674fc385a635d9341"
+  integrity sha512-pzoSuMkvrOFnP1jQqZ4tvx7CvEkwDsDZkkr7KPEJNs5m+sXRytOZc69PERbpjzCGQBJo3KhlsWOcE0HwvDTwjw==
   dependencies:
     "@open-flash/stream" "^0.1.1"
     "@types/pako" "^1.0.1"
