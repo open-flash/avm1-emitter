@@ -1,14 +1,12 @@
 import { WritableByteStream, WritableStream } from "@open-flash/stream";
 import { ActionType } from "avm1-tree/action-type";
-import { Return, Throw } from "avm1-tree/actions";
 import { Cfg } from "avm1-tree/cfg";
-import { CfgAction } from "avm1-tree/cfg-action";
 import { CfgDefineFunction } from "avm1-tree/cfg-actions/cfg-define-function";
 import { CfgDefineFunction2 } from "avm1-tree/cfg-actions/cfg-define-function2";
-import { CfgJump } from "avm1-tree/cfg-actions/cfg-jump";
 import { CfgTry } from "avm1-tree/cfg-actions/cfg-try";
 import { CfgWith } from "avm1-tree/cfg-actions/cfg-with";
 import { CfgBlock } from "avm1-tree/cfg-block";
+import { CfgBlockType } from "avm1-tree/cfg-block-type";
 import { CfgLabel } from "avm1-tree/cfg-label";
 import { UintSize } from "semantic-types";
 import { emitAction } from "./emitters/avm1";
@@ -31,20 +29,29 @@ export function cfgToBytes(cfg: Cfg, withEndOfActions: boolean = true): Uint8Arr
     for (const [offset, target] of curBranches) {
       branches.set(offset, target);
     }
-    if (block.next === undefined) {
-      if (isNeverBlock(block)) {
-        // CfgBlock never reaches its end, no need to append anything
-      } else if (next !== undefined) {
-        // TODO: check all the following blocks: maybe we are already at an ending sequence
-        // Prevent fall-through by forcing a jump to the end
-        branches.set(emitJumpAction(byteStream), null);
-      }
-    } else {
-      if (next === undefined || next.label !== block.next) {
-        // Prevent fall-through by forcing a jump to the next block
-        branches.set(emitJumpAction(byteStream), block.next);
-      }
-      // Else: the next block matches the next label so we let the fall-through
+    switch (block.type) {
+      case CfgBlockType.End:
+        if (next !== undefined) {
+          // Force jump to end
+          branches.set(emitJumpAction(byteStream), null);
+        }
+        // Else: We already are the last block
+        break;
+      case CfgBlockType.Return:
+        emitAction(byteStream, {action: ActionType.Return});
+        break;
+      case CfgBlockType.Simple:
+        if (next === undefined || next.label !== block.next) {
+          // Prevent fall-through by forcing a jump to the next block
+          branches.set(emitJumpAction(byteStream), block.next);
+        }
+        // Else: the next block matches the next label so we let the fall-through
+        break;
+      case CfgBlockType.Throw:
+        emitAction(byteStream, {action: ActionType.Throw});
+        break;
+      default:
+        throw new Error("UnexpectedCfgBlockType");
     }
   }
 
@@ -59,17 +66,10 @@ export function cfgToBytes(cfg: Cfg, withEndOfActions: boolean = true): Uint8Arr
     if (targetOffset === undefined) {
       throw new Error(`LabelNotFound: ${targetLabel}`);
     }
+    // tslint:disable-next-line:restrict-plus-operands
     view.setInt16(offset, targetOffset - (offset + JUMP_OFFSET_SIZE), true);
   }
   return bytes;
-}
-
-function isNeverBlock(block: CfgBlock): boolean {
-  return block.actions.some(isNeverAction);
-}
-
-function isNeverAction(action: CfgAction): action is CfgJump | Return | Throw {
-  return action.action === ActionType.Jump || action.action === ActionType.Return || action.action === ActionType.Throw;
 }
 
 function emitCfg(byteStream: WritableByteStream, cfg: Cfg): void {
