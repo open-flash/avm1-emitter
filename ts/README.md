@@ -1,3 +1,3 @@
 # AVM1 Emitter
 
-**TODO**
+Converts AVM1 control flow graphs to bytes.

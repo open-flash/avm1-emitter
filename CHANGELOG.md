@@ -1,4 +1,4 @@
-# Next
+# 0.7.0 (2019-07-18)
 
 - **[Breaking change]** Update to `avm1-tree@0.7`.
 
