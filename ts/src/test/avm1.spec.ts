@@ -4,12 +4,9 @@ import { ActionType } from "avm1-tree/action-type";
 import { $CatchTarget } from "avm1-tree/catch-target";
 import { $Cfg, Cfg } from "avm1-tree/cfg";
 import { $CfgAction, CfgAction } from "avm1-tree/cfg-action";
-import { CfgIf } from "avm1-tree/cfg-actions/cfg-if";
-import { CfgWith } from "avm1-tree/cfg-actions/cfg-with";
 import { CfgBlock } from "avm1-tree/cfg-block";
 import { CfgBlockType } from "avm1-tree/cfg-block-type";
-import { CfgSimpleBlock } from "avm1-tree/cfg-blocks/cfg-simple-block";
-import { CfgLabel } from "avm1-tree/cfg-label";
+import { CfgLabel, NullableCfgLabel } from "avm1-tree/cfg-label";
 import { $Parameter, Parameter } from "avm1-tree/parameter";
 import chai from "chai";
 import fs from "fs";
@@ -29,9 +26,9 @@ const JSON_READER: JsonReader = new JsonReader();
 const JSON_VALUE_WRITER: JsonValueWriter = new JsonValueWriter();
 // `BLACKLIST` can be used to forcefully skip some tests.
 const BLACKLIST: ReadonlySet<string> = new Set([
-  "avm1-bytes/misaligned-jump",
-  "haxe/hello-world",
-  "samples/parse-data-string",
+  "avm1-bytes/corrupted-push",  // Requires error support
+  "avm1-bytes/misaligned-jump",  // Requires normalization
+  "samples/parse-data-string", // Requires normalization
 ]);
 // `WHITELIST` can be used to only enable a few tests.
 const WHITELIST: ReadonlySet<string> = new Set([
@@ -60,7 +57,7 @@ describe("avm1", function () {
         console.warn(e);
       }
 
-      chai.assert.isTrue(cfgEquivalent(actualCfg, inputCfg), "expected round-tripped CFG to be equivalent");
+      chai.assert.isTrue(hardCfgEquivalent(actualCfg, inputCfg), "expected round-tripped CFG to be equivalent");
     });
   }
 });
@@ -105,52 +102,51 @@ function* getSamples(): IterableIterator<Sample> {
 // Checks structural equivalence between the blocks.
 // The main difference with `$Cfg.equals` is that it allows different labels if
 // they still represent the same positions.
+function hardCfgEquivalent(left: Cfg, right: Cfg): boolean {
+  const leftLabels: CfgLabel[] = getHardCfgLabels(left);
+  const rightLabels: CfgLabel[] = getHardCfgLabels(right);
+
+  function labelEquivalent(leftLabel: NullableCfgLabel, rightLabel: NullableCfgLabel): boolean {
+    if (leftLabel === null || rightLabel === null) {
+      return leftLabel === rightLabel; // Check if both are `null`
+    }
+    return leftLabels.indexOf(leftLabel) === rightLabels.indexOf(rightLabel);
+  }
+
+  return softCfgEquivalent(left, right, labelEquivalent);
+}
+
 // tslint:disable-next-line:cyclomatic-complexity
-function cfgEquivalent(left: Cfg, right: Cfg) {
+function softCfgEquivalent(
+  left: Cfg,
+  right: Cfg,
+  lblEq: (l: NullableCfgLabel, r: NullableCfgLabel) => boolean,
+): boolean {
   if (left.blocks.length !== right.blocks.length) {
     return false;
   }
-  const leftLabelToIndex: Map<CfgLabel, UintSize> = new Map();
-  for (const [i, block] of left.blocks.entries()) {
-    leftLabelToIndex.set(block.label, i);
-  }
-  const rightLabelToIndex: Map<CfgLabel, UintSize> = new Map();
-  for (const [i, block] of right.blocks.entries()) {
-    rightLabelToIndex.set(block.label, i);
-  }
-
-  function labelEquivalent(leftLabel: CfgLabel, rightLabel: CfgLabel): boolean {
-    const leftIndex: UintSize | undefined = leftLabelToIndex.get(leftLabel);
-    const rightIndex: UintSize | undefined = rightLabelToIndex.get(rightLabel);
-    return leftIndex === rightIndex;
-  }
-
-  for (let i: UintSize = 0; i < left.blocks.length; i++) {
-    const leftBlock: CfgBlock = left.blocks[i];
-    const rightBlock: CfgBlock = right.blocks[i];
+  for (let bi: UintSize = 0; bi < left.blocks.length; bi++) {
+    const leftBlock: CfgBlock = left.blocks[bi];
+    const rightBlock: CfgBlock = right.blocks[bi];
     if (leftBlock.type !== rightBlock.type) {
       return false;
     }
-    if (!labelEquivalent(leftBlock.label, rightBlock.label)) {
+    if (!lblEq(leftBlock.label, rightBlock.label)) {
       return false;
-    }
-    if (leftBlock.type === CfgBlockType.Simple) {
-      if (!labelEquivalent(leftBlock.next, (rightBlock as CfgSimpleBlock).next)) {
-        return false;
-      }
     }
     if (leftBlock.actions.length !== rightBlock.actions.length) {
       return false;
     }
-    for (let a: UintSize = 0; a < leftBlock.actions.length; a++) {
-      const leftAction: CfgAction = leftBlock.actions[a];
-      const rightAction: CfgAction = rightBlock.actions[a];
-      if (leftAction.action !== rightAction.action) {
-        return false;
-      }
+    for (let ai: UintSize = 0; ai < leftBlock.actions.length; ai++) {
+      const leftAction: CfgAction = leftBlock.actions[ai];
+      const rightAction: CfgAction = rightBlock.actions[ai];
+
       switch (leftAction.action) {
         case ActionType.If:
-          if (!labelEquivalent(leftAction.target, (rightAction as CfgIf).target)) {
+          if (rightAction.action !== ActionType.If) {
+            return false;
+          }
+          if (!lblEq(leftAction.target, rightAction.target)) {
             return false;
           }
           break;
@@ -171,7 +167,7 @@ function cfgEquivalent(left: Cfg, right: Cfg) {
               return false;
             }
           }
-          if (!cfgEquivalent(leftAction.body, rightAction.body)) {
+          if (!hardCfgEquivalent(leftAction.body, rightAction.body)) {
             return false;
           }
           break;
@@ -202,39 +198,7 @@ function cfgEquivalent(left: Cfg, right: Cfg) {
               return false;
             }
           }
-          if (!cfgEquivalent(leftAction.body, rightAction.body)) {
-            return false;
-          }
-          break;
-        case ActionType.Try:
-          if (rightAction.action !== ActionType.Try) {
-            return false;
-          }
-          if (!$CatchTarget.equals(leftAction.catchTarget, rightAction.catchTarget)) {
-            return false;
-          }
-          if (!cfgEquivalent(leftAction.try, rightAction.try)) {
-            return false;
-          }
-          if ((leftAction.catch === undefined) !== (rightAction.catch === undefined)) {
-            return false;
-          }
-          if (leftAction.catch !== undefined) {
-            if (!cfgEquivalent(leftAction.catch, rightAction.catch!)) {
-              return false;
-            }
-          }
-          if ((leftAction.finally === undefined) !== (rightAction.finally === undefined)) {
-            return false;
-          }
-          if (leftAction.finally !== undefined) {
-            if (!cfgEquivalent(leftAction.finally, rightAction.finally!)) {
-              return false;
-            }
-          }
-          break;
-        case ActionType.With:
-          if (!cfgEquivalent(leftAction.with, (rightAction as CfgWith).with)) {
+          if (!hardCfgEquivalent(leftAction.body, rightAction.body)) {
             return false;
           }
           break;
@@ -245,6 +209,84 @@ function cfgEquivalent(left: Cfg, right: Cfg) {
           break;
       }
     }
+
+    switch (leftBlock.type) {
+      case CfgBlockType.Simple:
+        if (rightBlock.type !== CfgBlockType.Simple || !lblEq(leftBlock.next, rightBlock.next)) {
+          return false;
+        }
+        break;
+      case CfgBlockType.Try:
+        if (rightBlock.type !== CfgBlockType.Try) {
+          return false;
+        }
+        if (!softCfgEquivalent(leftBlock.try, rightBlock.try, lblEq)) {
+          return false;
+        }
+        if (leftBlock.catch !== undefined || rightBlock.catch !== undefined) {
+          if (leftBlock.catch === undefined || rightBlock.catch === undefined) {
+            return false;
+          }
+          if (!$CatchTarget.equals(leftBlock.catchTarget, rightBlock.catchTarget)) {
+            return false;
+          }
+          if (!softCfgEquivalent(leftBlock.catch, rightBlock.catch, lblEq)) {
+            return false;
+          }
+        }
+        if (leftBlock.finally !== undefined || rightBlock.finally !== undefined) {
+          if (leftBlock.finally === undefined || rightBlock.finally === undefined) {
+            return false;
+          }
+          if (!softCfgEquivalent(leftBlock.finally, rightBlock.finally, lblEq)) {
+            return false;
+          }
+        }
+        break;
+      case CfgBlockType.With:
+        if (rightBlock.type !== CfgBlockType.With) {
+          return false;
+        }
+        if (!softCfgEquivalent(leftBlock.with, rightBlock.with, lblEq)) {
+          return false;
+        }
+        break;
+      default:
+        if (leftBlock.type !== rightBlock.type) {
+          return false;
+        }
+        break;
+    }
   }
   return true;
+}
+
+function getHardCfgLabels(hardCfg: Cfg): CfgLabel[] {
+  const result: CfgLabel[] = [];
+
+  function visit(cfg: Cfg): void {
+    for (const block of cfg.blocks) {
+      result.push(block.label);
+      switch (block.type) {
+        case CfgBlockType.Try:
+          visit(block.try);
+          if (block.catch !== undefined) {
+            visit(block.catch);
+          }
+          if (block.finally !== undefined) {
+            visit(block.finally);
+          }
+          break;
+        case CfgBlockType.With:
+          visit(block.with);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  visit(hardCfg);
+
+  return result;
 }

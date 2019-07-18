@@ -1,13 +1,13 @@
+// tslint:disable:restrict-plus-operands
+
 import { WritableByteStream, WritableStream } from "@open-flash/stream";
 import { ActionType } from "avm1-tree/action-type";
 import { Cfg } from "avm1-tree/cfg";
 import { CfgDefineFunction } from "avm1-tree/cfg-actions/cfg-define-function";
 import { CfgDefineFunction2 } from "avm1-tree/cfg-actions/cfg-define-function2";
-import { CfgTry } from "avm1-tree/cfg-actions/cfg-try";
-import { CfgWith } from "avm1-tree/cfg-actions/cfg-with";
 import { CfgBlock } from "avm1-tree/cfg-block";
 import { CfgBlockType } from "avm1-tree/cfg-block-type";
-import { CfgLabel } from "avm1-tree/cfg-label";
+import { CfgLabel, NullableCfgLabel } from "avm1-tree/cfg-label";
 import { UintSize } from "semantic-types";
 import { emitAction } from "./emitters/avm1";
 
@@ -16,53 +16,24 @@ import { emitAction } from "./emitters/avm1";
  */
 const JUMP_OFFSET_SIZE: UintSize = 2;
 
-export function cfgToBytes(cfg: Cfg, withEndOfActions: boolean = true): Uint8Array {
-  const byteStream: WritableStream = new WritableStream();
-  const blockOffsets: Map<CfgLabel, UintSize> = new Map();
-  const branches: Map<UintSize, CfgLabel | null> = new Map();
+export function cfgToBytes(cfg: Cfg): Uint8Array {
+  return emitHardCfg(cfg, true);
+}
 
-  for (let blockIndex: UintSize = 0; blockIndex < cfg.blocks.length; blockIndex++) {
-    const block: CfgBlock = cfg.blocks[blockIndex];
-    const next: CfgBlock | undefined = blockIndex < cfg.blocks.length ? cfg.blocks[blockIndex + 1] : undefined;
-    blockOffsets.set(block.label, byteStream.bytePos);
-    const curBranches: ReadonlyMap<UintSize, CfgLabel> = emitBlock(byteStream, block);
-    for (const [offset, target] of curBranches) {
-      branches.set(offset, target);
-    }
-    switch (block.type) {
-      case CfgBlockType.End:
-        if (next !== undefined) {
-          // Force jump to end
-          branches.set(emitJumpAction(byteStream), null);
-        }
-        // Else: We already are the last block
-        break;
-      case CfgBlockType.Return:
-        emitAction(byteStream, {action: ActionType.Return});
-        break;
-      case CfgBlockType.Simple:
-        if (next === undefined || next.label !== block.next) {
-          // Prevent fall-through by forcing a jump to the next block
-          branches.set(emitJumpAction(byteStream), block.next);
-        }
-        // Else: the next block matches the next label so we let the fall-through
-        break;
-      case CfgBlockType.Throw:
-        emitAction(byteStream, {action: ActionType.Throw});
-        break;
-      default:
-        throw new Error("UnexpectedCfgBlockType");
-    }
+function emitHardCfg(cfg: Cfg, appendEndAction: boolean): Uint8Array {
+  const stream: WritableByteStream = new WritableStream();
+  const wi: WriteInfo = emitSoftCfg(stream, cfg, null);
+  const endOffset: UintSize = stream.bytePos;
+
+  if (appendEndAction) {
+    emitEndAction(stream);
   }
 
-  const endOffset: UintSize = byteStream.bytePos;
-  if (withEndOfActions) {
-    byteStream.writeUint8(0);
-  }
-  const bytes: Uint8Array = byteStream.getBytes();
+  const bytes: Uint8Array = stream.getBytes();
+
   const view: DataView = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  for (const [offset, targetLabel] of branches) {
-    const targetOffset: UintSize | undefined = targetLabel === null ? endOffset : blockOffsets.get(targetLabel);
+  for (const [offset, targetLabel] of wi.jumps) {
+    const targetOffset: UintSize | undefined = targetLabel === null ? endOffset : wi.blocks.get(targetLabel);
     if (targetOffset === undefined) {
       throw new Error(`LabelNotFound: ${targetLabel}`);
     }
@@ -72,52 +43,177 @@ export function cfgToBytes(cfg: Cfg, withEndOfActions: boolean = true): Uint8Arr
   return bytes;
 }
 
-function emitCfg(byteStream: WritableByteStream, cfg: Cfg): void {
-  byteStream.writeBytes(cfgToBytes(cfg, false));
+interface WriteInfo {
+  jumps: Map<UintSize, NullableCfgLabel>;
+  blocks: Map<CfgLabel, UintSize>;
 }
 
-function emitBlock(byteStream: WritableByteStream, block: CfgBlock): Map<UintSize, CfgLabel> {
-  const branches: Map<UintSize, CfgLabel> = new Map();
+function emitSoftCfg(
+  stream: WritableByteStream,
+  cfg: Cfg,
+  fallthroughNext: NullableCfgLabel,
+): WriteInfo {
+  const jumps: Map<UintSize, NullableCfgLabel> = new Map();
+  const blocks: Map<CfgLabel, UintSize> = new Map();
+
+  for (let i: UintSize = 0; i < cfg.blocks.length; i++) {
+    const block: CfgBlock = cfg.blocks[i];
+    const curNext: NullableCfgLabel = i < cfg.blocks.length - 1 ? cfg.blocks[i + 1].label : fallthroughNext;
+
+    const wi: WriteInfo = emitBlock(stream, block, curNext);
+    for (const [offset, target] of wi.jumps) {
+      jumps.set(offset, target);
+    }
+    for (const [label, offset] of wi.blocks) {
+      blocks.set(label, offset);
+    }
+  }
+
+  return {jumps, blocks};
+}
+
+// tslint:disable-next-line:cyclomatic-complexity
+function emitBlock(
+  stream: WritableByteStream,
+  block: CfgBlock,
+  fallthroughNext: NullableCfgLabel,
+): WriteInfo {
+  const jumps: Map<UintSize, NullableCfgLabel> = new Map();
+  const blocks: Map<CfgLabel, UintSize> = new Map();
+
+  blocks.set(block.label, stream.bytePos);
+
   for (const action of block.actions) {
     switch (action.action) {
       case ActionType.DefineFunction:
-        emitDefineFunctionAction(byteStream, action);
+        emitDefineFunctionAction(stream, action);
         break;
       case ActionType.DefineFunction2:
-        emitDefineFunction2Action(byteStream, action);
+        emitDefineFunction2Action(stream, action);
         break;
       case ActionType.If:
-        branches.set(emitIfAction(byteStream), action.target);
-        break;
-      case ActionType.Jump:
-        branches.set(emitJumpAction(byteStream), action.target);
-        break;
-      case ActionType.Try:
-        emitTryAction(byteStream, action);
-        break;
-      case ActionType.With:
-        emitWithAction(byteStream, action);
+        jumps.set(emitIfAction(stream), action.target);
         break;
       default:
-        emitAction(byteStream, action);
+        emitAction(stream, action);
         break;
     }
   }
-  return branches;
+  switch (block.type) {
+    case CfgBlockType.Error:
+      throw new Error("NotImplemented: Support for `Error` CFG blocks");
+    case CfgBlockType.Simple:
+      if (fallthroughNext !== block.next) {
+        if (block.next === null) {
+          emitEndAction(stream);
+        } else {
+          jumps.set(emitJumpAction(stream), block.next);
+        }
+      }
+      break;
+    case CfgBlockType.Return:
+      emitAction(stream, {action: ActionType.Return});
+      break;
+    case CfgBlockType.Throw:
+      emitAction(stream, {action: ActionType.Throw});
+      break;
+    case CfgBlockType.Try: {
+      const finallyNext: NullableCfgLabel = fallthroughNext;
+      const catchNext: NullableCfgLabel = block.finally !== undefined && block.finally.blocks.length > 0
+        ? block.finally.blocks[0].label
+        : finallyNext;
+      const tryNext: NullableCfgLabel = block.catch !== undefined && block.catch.blocks.length > 0
+        ? block.catch.blocks[0].label
+        : catchNext;
+
+      const tryStream: WritableByteStream = new WritableStream();
+      const tryWi: WriteInfo = emitSoftCfg(tryStream, block.try, tryNext);
+
+      const catchStream: WritableByteStream = new WritableStream();
+      let catchWi: WriteInfo | undefined;
+      if (block.catch !== undefined) {
+        catchWi = emitSoftCfg(catchStream, block.catch, catchNext);
+      }
+
+      const finallyStream: WritableByteStream = new WritableStream();
+      let finallyWi: WriteInfo | undefined;
+      if (block.finally !== undefined) {
+        finallyWi = emitSoftCfg(finallyStream, block.finally, finallyNext);
+      }
+
+      emitAction(
+        stream,
+        {
+          action: ActionType.Try,
+          trySize: tryStream.bytePos,
+          catchSize: catchWi !== undefined ? catchStream.bytePos : undefined,
+          catchTarget: block.catchTarget,
+          finallySize: finallyWi !== undefined ? finallyStream.bytePos : undefined,
+        },
+      );
+
+      for (const [offset, target] of tryWi.jumps) {
+        jumps.set(stream.bytePos + offset, target);
+      }
+      for (const [label, offset] of tryWi.blocks) {
+        blocks.set(label, stream.bytePos + offset);
+      }
+      stream.write(tryStream);
+
+      if (catchWi !== undefined) {
+        for (const [offset, target] of catchWi.jumps) {
+          jumps.set(stream.bytePos + offset, target);
+        }
+        for (const [label, offset] of catchWi.blocks) {
+          blocks.set(label, stream.bytePos + offset);
+        }
+        stream.write(catchStream);
+      }
+
+      if (finallyWi !== undefined) {
+        for (const [offset, target] of finallyWi.jumps) {
+          jumps.set(stream.bytePos + offset, target);
+        }
+        for (const [label, offset] of finallyWi.blocks) {
+          blocks.set(label, stream.bytePos + offset);
+        }
+        stream.write(finallyStream);
+      }
+      break;
+    }
+    case CfgBlockType.With: {
+      const withStream: WritableByteStream = new WritableStream();
+      const withWi: WriteInfo = emitSoftCfg(withStream, block.with, fallthroughNext);
+      emitAction(stream, {action: ActionType.With, withSize: withStream.bytePos});
+      for (const [offset, target] of withWi.jumps) {
+        jumps.set(stream.bytePos + offset, target);
+      }
+      for (const [label, offset] of withWi.blocks) {
+        blocks.set(label, stream.bytePos + offset);
+      }
+      stream.write(withStream);
+      break;
+    }
+    default:
+      throw new Error("UnexpectedCfgBlockType");
+  }
+  return {jumps, blocks};
 }
 
 function emitDefineFunctionAction(byteStream: WritableByteStream, action: CfgDefineFunction): void {
-  const bodyStream: WritableStream = new WritableStream();
-  emitCfg(bodyStream, action.body);
-  const body: Uint8Array = bodyStream.getBytes();
-  emitAction(byteStream, {...action, body});
+  const body: Uint8Array = emitHardCfg(action.body, false);
+  emitAction(byteStream, {...action, bodySize: body.length});
+  byteStream.writeBytes(body);
 }
 
 function emitDefineFunction2Action(byteStream: WritableByteStream, action: CfgDefineFunction2): void {
-  const bodyStream: WritableStream = new WritableStream();
-  emitCfg(bodyStream, action.body);
-  const body: Uint8Array = bodyStream.getBytes();
-  emitAction(byteStream, {...action, body});
+  const body: Uint8Array = emitHardCfg(action.body, false);
+  emitAction(byteStream, {...action, bodySize: body.length});
+  byteStream.writeBytes(body);
+}
+
+function emitEndAction(byteStream: WritableByteStream): void {
+  byteStream.writeUint8(0x00);
 }
 
 function emitIfAction(byteStream: WritableByteStream): UintSize {
@@ -128,42 +224,4 @@ function emitIfAction(byteStream: WritableByteStream): UintSize {
 function emitJumpAction(byteStream: WritableByteStream): UintSize {
   emitAction(byteStream, {action: ActionType.Jump, offset: 0});
   return byteStream.bytePos - JUMP_OFFSET_SIZE;
-}
-
-function emitTryAction(byteStream: WritableByteStream, action: CfgTry): void {
-  const tryStream: WritableStream = new WritableStream();
-  emitCfg(tryStream, action.try);
-  const tryBody: Uint8Array = tryStream.getBytes();
-
-  let catchBody: Uint8Array | undefined;
-  if (action.catch !== undefined) {
-    const catchStream: WritableStream = new WritableStream();
-    emitCfg(catchStream, action.catch);
-    catchBody = catchStream.getBytes();
-  }
-
-  let finallyBody: Uint8Array | undefined;
-  if (action.finally !== undefined) {
-    const finallyStream: WritableStream = new WritableStream();
-    emitCfg(finallyStream, action.finally);
-    finallyBody = finallyStream.getBytes();
-  }
-
-  emitAction(
-    byteStream,
-    {
-      action: ActionType.Try,
-      try: tryBody,
-      catchTarget: action.catchTarget,
-      catch: catchBody,
-      finally: finallyBody,
-    },
-  );
-}
-
-function emitWithAction(byteStream: WritableByteStream, action: CfgWith): void {
-  const bodyStream: WritableStream = new WritableStream();
-  emitCfg(bodyStream, action.with);
-  const body: Uint8Array = bodyStream.getBytes();
-  emitAction(byteStream, {action: ActionType.With, with: body});
 }

@@ -23,6 +23,7 @@ const project: Project = {
   tslint: {
     configuration: {
       rules: {
+        restrictPlusOperands: false,
         whitespace: false,
       },
     },

@@ -141,12 +141,12 @@ export function emitAction(byteStream: ByteStream, value: Action): void {
   }
 
   const actionStream: Stream = new Stream();
-  const lengthOverride: void | UintSize = actionEmitter[0](actionStream, value);
+  actionEmitter[0](actionStream, value);
   emitActionHeader(
     byteStream,
     {
       actionCode: actionEmitter[1],
-      length: typeof lengthOverride === "number" ? lengthOverride : actionStream.bytePos,
+      length: actionStream.bytePos,
     },
   );
   byteStream.write(actionStream);
@@ -194,10 +194,8 @@ export function emitWaitForFrame2Action(byteStream: ByteStream, value: actions.W
  *
  * @param byteStream The bytestream used to emit the action.
  * @param value DefineFunction2 action to emit.
- * @returns The length for the action header (excluding the function body).
  */
-export function emitDefineFunction2Action(byteStream: ByteStream, value: actions.DefineFunction2): UintSize {
-  const startBytePos: UintSize = byteStream.bytePos;
+export function emitDefineFunction2Action(byteStream: ByteStream, value: actions.DefineFunction2): void {
   byteStream.writeCString(value.name);
   byteStream.writeUint16LE(value.parameters.length);
   byteStream.writeUint8(value.registerCount);
@@ -219,13 +217,7 @@ export function emitDefineFunction2Action(byteStream: ByteStream, value: actions
     byteStream.writeCString(parameter.name);
   }
 
-  const bodyStream: Stream = new Stream();
-  bodyStream.writeBytes(value.body);
-
-  byteStream.writeUint16LE(bodyStream.bytePos);
-  const lengthOverride: UintSize = byteStream.bytePos - startBytePos;
-  byteStream.write(bodyStream);
-  return lengthOverride;
+  byteStream.writeUint16LE(value.bodySize);
 }
 
 function emitCatchTarget(byteStream: ByteStream, value: CatchTarget): void {
@@ -241,37 +233,16 @@ export function emitTryAction(byteStream: ByteStream, value: actions.Try): void 
     && value.catchTarget.type === CatchTargetType.Register;
 
   const flags: Uint8 = 0
-    | (value.catch !== undefined ? 1 << 0 : 0)
-    | (value.finally !== undefined ? 1 << 1 : 0)
+    | (value.catchSize !== undefined ? 1 << 0 : 0)
+    | (value.finallySize !== undefined ? 1 << 1 : 0)
     | (catchInRegister ? 1 << 2 : 0);
   // (Skip 5 bits)
   byteStream.writeUint8(flags);
 
-  const tryStream: Stream = new Stream();
-  let catchStream: Stream | undefined = undefined;
-  let finallyStream: Stream | undefined = undefined;
-
-  tryStream.writeBytes(value.try);
-  if (value.catch !== undefined) {
-    catchStream = new Stream();
-    catchStream.writeBytes(value.catch);
-  }
-  if (value.finally !== undefined) {
-    finallyStream = new Stream();
-    finallyStream.writeBytes(value.finally);
-  }
-
-  byteStream.writeUint16LE(tryStream.bytePos);
-  byteStream.writeUint16LE(catchStream !== undefined ? catchStream.bytePos : 0);
-  byteStream.writeUint16LE(finallyStream !== undefined ? finallyStream.bytePos : 0);
+  byteStream.writeUint16LE(value.trySize);
+  byteStream.writeUint16LE(value.catchSize !== undefined ? value.catchSize : 0);
+  byteStream.writeUint16LE(value.finallySize !== undefined ? value.finallySize : 0);
   emitCatchTarget(byteStream, value.catchTarget);
-  byteStream.write(tryStream);
-  if (catchStream !== undefined) {
-    byteStream.write(catchStream);
-  }
-  if (finallyStream !== undefined) {
-    byteStream.write(finallyStream);
-  }
 }
 
 /**
@@ -281,14 +252,8 @@ export function emitTryAction(byteStream: ByteStream, value: actions.Try): void 
  * @param value With action to emit.
  * @returns The length for the action header (excluding the with body).
  */
-export function emitWithAction(byteStream: ByteStream, value: actions.With): UintSize {
-  const startBytePos: UintSize = byteStream.bytePos;
-  const withStream: Stream = new Stream();
-  withStream.writeBytes(value.with);
-  byteStream.writeUint16LE(withStream.bytePos);
-  const lengthOverride: UintSize = byteStream.bytePos - startBytePos;
-  byteStream.write(withStream);
-  return lengthOverride;
+export function emitWithAction(byteStream: ByteStream, value: actions.With): void {
+  byteStream.writeUint16LE(value.withSize);
 }
 
 export function emitPushAction(byteStream: ByteStream, value: actions.Push): void {
@@ -373,20 +338,14 @@ export function emitGetUrl2Action(byteStream: ByteStream, value: actions.GetUrl2
  * @param value DefineFunction action to emit.
  * @returns The length for the action header (excluding the function body).
  */
-export function emitDefineFunctionAction(byteStream: ByteStream, value: actions.DefineFunction): UintSize {
-  const startBytePos: UintSize = byteStream.bytePos;
+export function emitDefineFunctionAction(byteStream: ByteStream, value: actions.DefineFunction): void {
   byteStream.writeCString(value.name);
   byteStream.writeUint16LE(value.parameters.length);
   for (const parameter of value.parameters) {
     byteStream.writeCString(parameter);
   }
 
-  const bodyStream: Stream = new Stream();
-  bodyStream.writeBytes(value.body);
-  byteStream.writeUint16LE(bodyStream.bytePos);
-  const lengthOverride: UintSize = byteStream.bytePos - startBytePos;
-  byteStream.write(bodyStream);
-  return lengthOverride;
+  byteStream.writeUint16LE(value.bodySize);
 }
 
 export function emitIfAction(byteStream: ByteStream, value: actions.If): void {
