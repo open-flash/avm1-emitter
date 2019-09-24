@@ -26,7 +26,6 @@ const JSON_READER: JsonReader = new JsonReader();
 const JSON_VALUE_WRITER: JsonValueWriter = new JsonValueWriter();
 // `BLACKLIST` can be used to forcefully skip some tests.
 const BLACKLIST: ReadonlySet<string> = new Set([
-  "avm1-bytes/corrupted-push",  // Requires error support
   "avm1-bytes/misaligned-jump",  // Requires normalization
   "samples/delta-of-dir", // Requires normalization
   "samples/parse-data-string", // Requires normalization

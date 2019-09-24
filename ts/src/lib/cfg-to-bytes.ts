@@ -98,7 +98,8 @@ function emitBlock(
   }
   switch (block.type) {
     case CfgBlockType.Error:
-      throw new Error("NotImplemented: Support for `Error` CFG blocks");
+      emitError(stream);
+      break;
     case CfgBlockType.If:
       jumps.set(emitIfAction(stream), block.ifTrue);
       if (fallthroughNext !== block.ifFalse) {
@@ -223,7 +224,10 @@ function emitDefineFunctionAction(byteStream: WritableByteStream, action: CfgDef
   byteStream.writeBytes(body);
 }
 
-function emitDefineFunction2Action(byteStream: WritableByteStream, action: CfgDefineFunction2): void {
+function emitDefineFunction2Action(
+  byteStream: WritableByteStream,
+  action: CfgDefineFunction2,
+): void {
   const body: Uint8Array = emitHardCfg(action.body, false);
   emitAction(byteStream, {...action, bodySize: body.length});
   byteStream.writeBytes(body);
@@ -241,4 +245,10 @@ function emitIfAction(byteStream: WritableByteStream): UintSize {
 function emitJumpAction(byteStream: WritableByteStream): UintSize {
   emitAction(byteStream, {action: ActionType.Jump, offset: 0});
   return byteStream.bytePos - JUMP_OFFSET_SIZE;
+}
+
+function emitError(byteStream: WritableByteStream): void {
+  byteStream.writeUint8(0x96); // push code
+  byteStream.writeUint16LE(0x0001); // data length (1)
+  byteStream.writeUint8(0xff); // invalid push value type code (0xff)
 }

@@ -2,6 +2,10 @@
 
 - **[Breaking change]** Update to `avm1-tree@0.8`.
 
+## Typescript
+
+- **[Fix]** Add support for error blocks.
+
 # 0.7.0 (2019-07-18)
 
 - **[Breaking change]** Update to `avm1-tree@0.7`.
