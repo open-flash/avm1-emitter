@@ -28,7 +28,12 @@ const JSON_VALUE_WRITER: JsonValueWriter = new JsonValueWriter();
 const BLACKLIST: ReadonlySet<string> = new Set([
   "avm1-bytes/corrupted-push",  // Requires error support
   "avm1-bytes/misaligned-jump",  // Requires normalization
+  "samples/delta-of-dir", // Requires normalization
   "samples/parse-data-string", // Requires normalization
+  "wait-for-frame/homestuck-beta2", // Requires normalization
+  "wait-for-frame/ready-increments", // Requires normalization
+  "wait-for-frame/ready-jump-increments", // Requires normalization
+  "wait-for-frame/wff2-ready-increments", // Requires normalization
 ]);
 // `WHITELIST` can be used to only enable a few tests.
 const WHITELIST: ReadonlySet<string> = new Set([
@@ -142,14 +147,6 @@ function softCfgEquivalent(
       const rightAction: CfgAction = rightBlock.actions[ai];
 
       switch (leftAction.action) {
-        case ActionType.If:
-          if (rightAction.action !== ActionType.If) {
-            return false;
-          }
-          if (!lblEq(leftAction.target, rightAction.target)) {
-            return false;
-          }
-          break;
         case ActionType.DefineFunction:
           if (rightAction.action !== ActionType.DefineFunction) {
             return false;
@@ -211,6 +208,15 @@ function softCfgEquivalent(
     }
 
     switch (leftBlock.type) {
+      case CfgBlockType.If:
+        if (
+          rightBlock.type !== CfgBlockType.If
+          || !lblEq(leftBlock.ifTrue, rightBlock.ifTrue)
+          || !lblEq(leftBlock.ifFalse, rightBlock.ifFalse)
+        ) {
+          return false;
+        }
+        break;
       case CfgBlockType.Simple:
         if (rightBlock.type !== CfgBlockType.Simple || !lblEq(leftBlock.next, rightBlock.next)) {
           return false;

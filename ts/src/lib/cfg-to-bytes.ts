@@ -91,9 +91,6 @@ function emitBlock(
       case ActionType.DefineFunction2:
         emitDefineFunction2Action(stream, action);
         break;
-      case ActionType.If:
-        jumps.set(emitIfAction(stream), action.target);
-        break;
       default:
         emitAction(stream, action);
         break;
@@ -102,6 +99,16 @@ function emitBlock(
   switch (block.type) {
     case CfgBlockType.Error:
       throw new Error("NotImplemented: Support for `Error` CFG blocks");
+    case CfgBlockType.If:
+      jumps.set(emitIfAction(stream), block.ifTrue);
+      if (fallthroughNext !== block.ifFalse) {
+        if (block.ifFalse === null) {
+          emitEndAction(stream);
+        } else {
+          jumps.set(emitJumpAction(stream), block.ifFalse);
+        }
+      }
+      break;
     case CfgBlockType.Simple:
       if (fallthroughNext !== block.next) {
         if (block.next === null) {
@@ -181,6 +188,16 @@ function emitBlock(
       }
       break;
     }
+    case CfgBlockType.WaitForFrame:
+      emitAction(stream, {action: ActionType.WaitForFrame, frame: block.frame, skipCount: 1});
+      jumps.set(emitJumpAction(stream), block.ifLoaded);
+      jumps.set(emitJumpAction(stream), block.ifNotLoaded);
+      break;
+    case CfgBlockType.WaitForFrame2:
+      emitAction(stream, {action: ActionType.WaitForFrame2, skipCount: 1});
+      jumps.set(emitJumpAction(stream), block.ifLoaded);
+      jumps.set(emitJumpAction(stream), block.ifNotLoaded);
+      break;
     case CfgBlockType.With: {
       const withStream: WritableByteStream = new WritableStream();
       const withWi: WriteInfo = emitSoftCfg(withStream, block.with, fallthroughNext);
