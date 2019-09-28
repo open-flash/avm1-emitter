@@ -1,4 +1,4 @@
-# Next
+# 0.9.0 (2019-09-28)
 
 - **[Breaking change]** Update to `avm1-types@0.9` (former `avm1-tree`).
 
