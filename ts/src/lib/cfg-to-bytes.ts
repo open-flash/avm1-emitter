@@ -1,13 +1,13 @@
 // tslint:disable:restrict-plus-operands
 
 import { WritableByteStream, WritableStream } from "@open-flash/stream";
-import { ActionType } from "avm1-tree/action-type";
-import { Cfg } from "avm1-tree/cfg";
-import { CfgDefineFunction } from "avm1-tree/cfg-actions/cfg-define-function";
-import { CfgDefineFunction2 } from "avm1-tree/cfg-actions/cfg-define-function2";
-import { CfgBlock } from "avm1-tree/cfg-block";
-import { CfgBlockType } from "avm1-tree/cfg-block-type";
-import { CfgLabel, NullableCfgLabel } from "avm1-tree/cfg-label";
+import { ActionType } from "avm1-types/action-type";
+import { Cfg } from "avm1-types/cfg";
+import { CfgDefineFunction } from "avm1-types/cfg-actions/cfg-define-function";
+import { CfgDefineFunction2 } from "avm1-types/cfg-actions/cfg-define-function2";
+import { CfgBlock } from "avm1-types/cfg-block";
+import { CfgBlockType } from "avm1-types/cfg-block-type";
+import { CfgLabel, NullableCfgLabel } from "avm1-types/cfg-label";
 import { UintSize } from "semantic-types";
 import { emitAction } from "./emitters/avm1";
 
@@ -56,9 +56,11 @@ function emitSoftCfg(
   const jumps: Map<UintSize, NullableCfgLabel> = new Map();
   const blocks: Map<CfgLabel, UintSize> = new Map();
 
-  for (let i: UintSize = 0; i < cfg.blocks.length; i++) {
-    const block: CfgBlock = cfg.blocks[i];
-    const curNext: NullableCfgLabel = i < cfg.blocks.length - 1 ? cfg.blocks[i + 1].label : fallthroughNext;
+  const blockList: ReadonlyArray<CfgBlock> = [cfg.head, ...cfg.tail];
+
+  for (let i: UintSize = 0; i < blockList.length; i++) {
+    const block: CfgBlock = blockList[i];
+    const curNext: NullableCfgLabel = i < blockList.length - 1 ? blockList[i + 1].label : fallthroughNext;
 
     const wi: WriteInfo = emitBlock(stream, block, curNext);
     for (const [offset, target] of wi.jumps) {
@@ -127,11 +129,11 @@ function emitBlock(
       break;
     case CfgBlockType.Try: {
       const finallyNext: NullableCfgLabel = fallthroughNext;
-      const catchNext: NullableCfgLabel = block.finally !== undefined && block.finally.blocks.length > 0
-        ? block.finally.blocks[0].label
+      const catchNext: NullableCfgLabel = block.finally !== undefined
+        ? block.finally.head.label
         : finallyNext;
-      const tryNext: NullableCfgLabel = block.catch !== undefined && block.catch.blocks.length > 0
-        ? block.catch.blocks[0].label
+      const tryNext: NullableCfgLabel = block.catch !== undefined
+        ? block.catch.head.label
         : catchNext;
 
       const tryStream: WritableByteStream = new WritableStream();

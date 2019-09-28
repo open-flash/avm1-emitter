@@ -11,11 +11,11 @@
 [![Build status](https://img.shields.io/travis/com/open-flash/avm1-emitter/master.svg)](https://travis-ci.com/open-flash/avm1-emitter)
 
 AVM1 emitter implemented in Typescript (Node and browser).
-Converts [`avm1-tree` actions][avm1-tree] to bytes.
+Converts [`avm1-types` actions][avm1-types] to bytes.
 
 - [Typescript implementation](./ts/README.md)
 
 This library is part of the [Open Flash][ofl] project.
 
 [ofl]: https://github.com/open-flash/open-flash
-[avm1-tree]: https://github.com/open-flash/avm1-tree
+[avm1-types]: https://github.com/open-flash/avm1-types

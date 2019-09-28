@@ -1,13 +1,13 @@
 import { toAasm } from "avm1-asm/to-aasm";
 import { cfgFromBytes } from "avm1-parser";
-import { ActionType } from "avm1-tree/action-type";
-import { $CatchTarget } from "avm1-tree/catch-target";
-import { $Cfg, Cfg } from "avm1-tree/cfg";
-import { $CfgAction, CfgAction } from "avm1-tree/cfg-action";
-import { CfgBlock } from "avm1-tree/cfg-block";
-import { CfgBlockType } from "avm1-tree/cfg-block-type";
-import { CfgLabel, NullableCfgLabel } from "avm1-tree/cfg-label";
-import { $Parameter, Parameter } from "avm1-tree/parameter";
+import { ActionType } from "avm1-types/action-type";
+import { $CatchTarget } from "avm1-types/catch-target";
+import { $Cfg, Cfg } from "avm1-types/cfg";
+import { $CfgAction, CfgAction } from "avm1-types/cfg-action";
+import { CfgBlock } from "avm1-types/cfg-block";
+import { CfgBlockType } from "avm1-types/cfg-block-type";
+import { CfgLabel, NullableCfgLabel } from "avm1-types/cfg-label";
+import { $Parameter, Parameter } from "avm1-types/parameter";
 import chai from "chai";
 import fs from "fs";
 import { JsonReader } from "kryo/readers/json";
@@ -126,12 +126,14 @@ function softCfgEquivalent(
   right: Cfg,
   lblEq: (l: NullableCfgLabel, r: NullableCfgLabel) => boolean,
 ): boolean {
-  if (left.blocks.length !== right.blocks.length) {
+  const leftBlocks: ReadonlyArray<CfgBlock> = [left.head, ...left.tail];
+  const rightBlocks: ReadonlyArray<CfgBlock> = [right.head, ...right.tail];
+  if (leftBlocks.length !== rightBlocks.length) {
     return false;
   }
-  for (let bi: UintSize = 0; bi < left.blocks.length; bi++) {
-    const leftBlock: CfgBlock = left.blocks[bi];
-    const rightBlock: CfgBlock = right.blocks[bi];
+  for (let bi: UintSize = 0; bi < leftBlocks.length; bi++) {
+    const leftBlock: CfgBlock = leftBlocks[bi];
+    const rightBlock: CfgBlock = rightBlocks[bi];
     if (leftBlock.type !== rightBlock.type) {
       return false;
     }
@@ -270,7 +272,7 @@ function getHardCfgLabels(hardCfg: Cfg): CfgLabel[] {
   const result: CfgLabel[] = [];
 
   function visit(cfg: Cfg): void {
-    for (const block of cfg.blocks) {
+    for (const block of [cfg.head, ...cfg.tail]) {
       result.push(block.label);
       switch (block.type) {
         case CfgBlockType.Try:
