@@ -1,12 +1,12 @@
 import { WritableByteStream as ByteStream, WritableStream as Stream } from "@open-flash/stream";
-import { Action } from "avm1-types/action";
 import { ActionType } from "avm1-types/action-type";
-import * as actions from "avm1-types/actions/index";
 import { CatchTarget } from "avm1-types/catch-target";
 import { CatchTargetType } from "avm1-types/catch-targets/_type";
 import { GetUrl2Method } from "avm1-types/get-url2-method";
-import { Value } from "avm1-types/value";
-import { ValueType } from "avm1-types/value-type";
+import { PushValue } from "avm1-types/push-value";
+import { PushValueType } from "avm1-types/push-value-type";
+import { Action as RawAction } from "avm1-types/raw/action";
+import * as actions from "avm1-types/raw/actions/index";
 import { Incident } from "incident";
 import { Uint16, Uint2, Uint8, UintSize } from "semantic-types";
 
@@ -23,8 +23,8 @@ export function emitActionHeader(byteStream: ByteStream, value: ActionHeader): v
 }
 
 // tslint:disable-next-line:cyclomatic-complexity
-export function emitAction(byteStream: ByteStream, value: Action): void {
-  type ActionEmitter = number | [(byteStream: ByteStream, value: Action) => void | UintSize, number];
+export function emitAction(byteStream: ByteStream, value: RawAction): void {
+  type ActionEmitter = number | [(byteStream: ByteStream, value: RawAction) => void | UintSize, number];
 
   const ACTION_TYPE_TO_EMITTER: Map<ActionType, ActionEmitter> = new Map<ActionType, ActionEmitter>(<any[]> [
     [ActionType.Add, 0x0a],
@@ -157,8 +157,8 @@ export function emitGotoFrameAction(byteStream: ByteStream, value: actions.GotoF
 }
 
 export function emitGetUrlAction(byteStream: ByteStream, value: actions.GetUrl): void {
-  byteStream.writeCString(value.url);
-  byteStream.writeCString(value.target);
+  byteStream.writeNulUtf8(value.url);
+  byteStream.writeNulUtf8(value.target);
 }
 
 export function emitStoreRegisterAction(byteStream: ByteStream, value: actions.StoreRegister): void {
@@ -166,27 +166,27 @@ export function emitStoreRegisterAction(byteStream: ByteStream, value: actions.S
 }
 
 export function emitConstantPoolAction(byteStream: ByteStream, value: actions.ConstantPool): void {
-  byteStream.writeUint16LE(value.constantPool.length);
-  for (const constant of value.constantPool) {
-    byteStream.writeCString(constant);
+  byteStream.writeUint16LE(value.pool.length);
+  for (const constant of value.pool) {
+    byteStream.writeNulUtf8(constant);
   }
 }
 
 export function emitWaitForFrameAction(byteStream: ByteStream, value: actions.WaitForFrame): void {
   byteStream.writeUint16LE(value.frame);
-  byteStream.writeUint8(value.skipCount);
+  byteStream.writeUint8(value.skip);
 }
 
 export function emitSetTargetAction(byteStream: ByteStream, value: actions.SetTarget): void {
-  byteStream.writeCString(value.targetName);
+  byteStream.writeNulUtf8(value.targetName);
 }
 
 export function emitGotoLabelAction(byteStream: ByteStream, value: actions.GotoLabel): void {
-  byteStream.writeCString(value.label);
+  byteStream.writeNulUtf8(value.label);
 }
 
 export function emitWaitForFrame2Action(byteStream: ByteStream, value: actions.WaitForFrame2): void {
-  byteStream.writeUint8(value.skipCount);
+  byteStream.writeUint8(value.skip);
 }
 
 /**
@@ -196,7 +196,7 @@ export function emitWaitForFrame2Action(byteStream: ByteStream, value: actions.W
  * @param value DefineFunction2 action to emit.
  */
 export function emitDefineFunction2Action(byteStream: ByteStream, value: actions.DefineFunction2): void {
-  byteStream.writeCString(value.name);
+  byteStream.writeNulUtf8(value.name);
   byteStream.writeUint16LE(value.parameters.length);
   byteStream.writeUint8(value.registerCount);
 
@@ -214,7 +214,7 @@ export function emitDefineFunction2Action(byteStream: ByteStream, value: actions
 
   for (const parameter of value.parameters) {
     byteStream.writeUint8(parameter.register);
-    byteStream.writeCString(parameter.name);
+    byteStream.writeNulUtf8(parameter.name);
   }
 
   byteStream.writeUint16LE(value.bodySize);
@@ -224,25 +224,28 @@ function emitCatchTarget(byteStream: ByteStream, value: CatchTarget): void {
   if (value.type === CatchTargetType.Register) {
     byteStream.writeUint8(value.target);
   } else {
-    byteStream.writeCString(value.target);
+    byteStream.writeNulUtf8(value.target);
   }
 }
 
 export function emitTryAction(byteStream: ByteStream, value: actions.Try): void {
-  const catchInRegister: boolean = value.catchTarget !== undefined
-    && value.catchTarget.type === CatchTargetType.Register;
+  const catchInRegister: boolean = value.catch !== undefined
+    && value.catch.target.type === CatchTargetType.Register;
 
   const flags: Uint8 = 0
-    | (value.catchSize !== undefined ? 1 << 0 : 0)
-    | (value.finallySize !== undefined ? 1 << 1 : 0)
+    | (value.catch !== undefined ? 1 << 0 : 0)
+    | (value.finally !== undefined ? 1 << 1 : 0)
     | (catchInRegister ? 1 << 2 : 0);
   // (Skip 5 bits)
   byteStream.writeUint8(flags);
 
-  byteStream.writeUint16LE(value.trySize);
-  byteStream.writeUint16LE(value.catchSize !== undefined ? value.catchSize : 0);
-  byteStream.writeUint16LE(value.finallySize !== undefined ? value.finallySize : 0);
-  emitCatchTarget(byteStream, value.catchTarget);
+  byteStream.writeUint16LE(value.try);
+  byteStream.writeUint16LE(value.catch !== undefined ? value.catch.size : 0);
+  byteStream.writeUint16LE(value.finally !== undefined ? value.finally : 0);
+  emitCatchTarget(
+    byteStream,
+    value.catch !== undefined ? value.catch.target : {type: CatchTargetType.Register, target: 0},
+  );
 }
 
 /**
@@ -253,7 +256,7 @@ export function emitTryAction(byteStream: ByteStream, value: actions.Try): void 
  * @returns The length for the action header (excluding the with body).
  */
 export function emitWithAction(byteStream: ByteStream, value: actions.With): void {
-  byteStream.writeUint16LE(value.withSize);
+  byteStream.writeUint16LE(value.size);
 }
 
 export function emitPushAction(byteStream: ByteStream, value: actions.Push): void {
@@ -262,13 +265,13 @@ export function emitPushAction(byteStream: ByteStream, value: actions.Push): voi
   }
 }
 
-export function emitActionValue(byteStream: ByteStream, value: Value): void {
+export function emitActionValue(byteStream: ByteStream, value: PushValue): void {
   switch (value.type) {
-    case ValueType.Boolean:
+    case PushValueType.Boolean:
       byteStream.writeUint8(5);
       byteStream.writeUint8(value.value ? 1 : 0);
       break;
-    case ValueType.Constant:
+    case PushValueType.Constant:
       if (value.value > 0xff) {
         byteStream.writeUint8(9);
         byteStream.writeUint16LE(value.value);
@@ -277,30 +280,30 @@ export function emitActionValue(byteStream: ByteStream, value: Value): void {
         byteStream.writeUint8(value.value as Uint8);
       }
       break;
-    case ValueType.String:
+    case PushValueType.String:
       byteStream.writeUint8(0);
-      byteStream.writeCString(value.value);
+      byteStream.writeNulUtf8(value.value);
       break;
-    case ValueType.Sint32:
+    case PushValueType.Sint32:
       byteStream.writeUint8(7);
       byteStream.writeSint32LE(value.value);
       break;
-    case ValueType.Float32:
+    case PushValueType.Float32:
       byteStream.writeUint8(1);
       byteStream.writeFloat32LE(value.value);
       break;
-    case ValueType.Float64:
+    case PushValueType.Float64:
       byteStream.writeUint8(6);
       byteStream.writeFloat64LE(value.value);
       break;
-    case ValueType.Null:
+    case PushValueType.Null:
       byteStream.writeUint8(2);
       break;
-    case ValueType.Register:
+    case PushValueType.Register:
       byteStream.writeUint8(4);
       byteStream.writeUint8(value.value);
       break;
-    case ValueType.Undefined:
+    case PushValueType.Undefined:
       byteStream.writeUint8(3);
       break;
     default:
@@ -339,10 +342,10 @@ export function emitGetUrl2Action(byteStream: ByteStream, value: actions.GetUrl2
  * @returns The length for the action header (excluding the function body).
  */
 export function emitDefineFunctionAction(byteStream: ByteStream, value: actions.DefineFunction): void {
-  byteStream.writeCString(value.name);
+  byteStream.writeNulUtf8(value.name);
   byteStream.writeUint16LE(value.parameters.length);
   for (const parameter of value.parameters) {
-    byteStream.writeCString(parameter);
+    byteStream.writeNulUtf8(parameter);
   }
 
   byteStream.writeUint16LE(value.bodySize);

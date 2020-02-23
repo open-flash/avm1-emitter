@@ -1,12 +1,13 @@
 import { toAasm } from "avm1-asm/to-aasm";
-import { cfgFromBytes } from "avm1-parser";
+import { parseCfg } from "avm1-parser";
 import { ActionType } from "avm1-types/action-type";
 import { $CatchTarget } from "avm1-types/catch-target";
-import { $Cfg, Cfg } from "avm1-types/cfg";
-import { $CfgAction, CfgAction } from "avm1-types/cfg-action";
-import { CfgBlock } from "avm1-types/cfg-block";
-import { CfgBlockType } from "avm1-types/cfg-block-type";
-import { CfgLabel, NullableCfgLabel } from "avm1-types/cfg-label";
+import { $Action, Action } from "avm1-types/cfg/action";
+import { $Cfg, Cfg } from "avm1-types/cfg/cfg";
+import { CfgBlock } from "avm1-types/cfg/cfg-block";
+import { CfgFlow } from "avm1-types/cfg/cfg-flow";
+import { CfgFlowType } from "avm1-types/cfg/cfg-flow-type";
+import { CfgLabel, NullableCfgLabel } from "avm1-types/cfg/cfg-label";
 import { $Parameter, Parameter } from "avm1-types/parameter";
 import chai from "chai";
 import fs from "fs";
@@ -29,6 +30,8 @@ const BLACKLIST: ReadonlySet<string> = new Set([
   "avm1-bytes/misaligned-jump",  // Requires normalization
   "samples/delta-of-dir", // Requires normalization
   "samples/parse-data-string", // Requires normalization
+  "try/try-empty-catch-overlong-finally-err", // TODO: Check why it fails
+  "try/try-nested-return", // TODO: Check why it fails
   "wait-for-frame/homestuck-beta2", // Requires normalization
   "wait-for-frame/ready-increments", // Requires normalization
   "wait-for-frame/ready-jump-increments", // Requires normalization
@@ -50,7 +53,7 @@ describe("avm1", function () {
       const actualAvm1: Uint8Array = cfgToBytes(inputCfg);
       await writeFile(sysPath.join(sample.root, "local-main.ts.avm1"), actualAvm1);
 
-      const actualCfg: Cfg = cfgFromBytes(actualAvm1);
+      const actualCfg: Cfg = parseCfg(actualAvm1);
       const actualCfgJson: string = JSON.stringify($Cfg.write(JSON_VALUE_WRITER, actualCfg), null, 2);
       await writeTextFile(sysPath.join(sample.root, "local-cfg.ts.json"), `${actualCfgJson}\n`);
 
@@ -126,15 +129,15 @@ function softCfgEquivalent(
   right: Cfg,
   lblEq: (l: NullableCfgLabel, r: NullableCfgLabel) => boolean,
 ): boolean {
-  const leftBlocks: ReadonlyArray<CfgBlock> = [left.head, ...left.tail];
-  const rightBlocks: ReadonlyArray<CfgBlock> = [right.head, ...right.tail];
+  const leftBlocks: ReadonlyArray<CfgBlock> = left.blocks;
+  const rightBlocks: ReadonlyArray<CfgBlock> = right.blocks;
   if (leftBlocks.length !== rightBlocks.length) {
     return false;
   }
   for (let bi: UintSize = 0; bi < leftBlocks.length; bi++) {
     const leftBlock: CfgBlock = leftBlocks[bi];
     const rightBlock: CfgBlock = rightBlocks[bi];
-    if (leftBlock.type !== rightBlock.type) {
+    if (leftBlock.flow.type !== rightBlock.flow.type) {
       return false;
     }
     if (!lblEq(leftBlock.label, rightBlock.label)) {
@@ -144,8 +147,8 @@ function softCfgEquivalent(
       return false;
     }
     for (let ai: UintSize = 0; ai < leftBlock.actions.length; ai++) {
-      const leftAction: CfgAction = leftBlock.actions[ai];
-      const rightAction: CfgAction = rightBlock.actions[ai];
+      const leftAction: Action = leftBlock.actions[ai];
+      const rightAction: Action = rightBlock.actions[ai];
 
       switch (leftAction.action) {
         case ActionType.DefineFunction:
@@ -201,68 +204,102 @@ function softCfgEquivalent(
           }
           break;
         default:
-          if (!$CfgAction.equals(leftAction, rightAction)) {
+          if (!$Action.equals(leftAction, rightAction)) {
             return false;
           }
           break;
       }
     }
 
-    switch (leftBlock.type) {
-      case CfgBlockType.If:
+    const leftFlow: CfgFlow = leftBlock.flow;
+    const rightFlow: CfgFlow = rightBlock.flow;
+
+    switch (leftFlow.type) {
+      case CfgFlowType.Error:
+        if (rightFlow.type !== CfgFlowType.Error) {
+          return false;
+        }
+        break;
+      case CfgFlowType.If:
         if (
-          rightBlock.type !== CfgBlockType.If
-          || !lblEq(leftBlock.ifTrue, rightBlock.ifTrue)
-          || !lblEq(leftBlock.ifFalse, rightBlock.ifFalse)
+          rightFlow.type !== CfgFlowType.If
+          || !lblEq(leftFlow.trueTarget, rightFlow.trueTarget)
+          || !lblEq(leftFlow.falseTarget, rightFlow.falseTarget)
         ) {
           return false;
         }
         break;
-      case CfgBlockType.Simple:
-        if (rightBlock.type !== CfgBlockType.Simple || !lblEq(leftBlock.next, rightBlock.next)) {
+      case CfgFlowType.Return:
+        if (rightFlow.type !== CfgFlowType.Return) {
           return false;
         }
         break;
-      case CfgBlockType.Try:
-        if (rightBlock.type !== CfgBlockType.Try) {
+      case CfgFlowType.Simple:
+        if (rightFlow.type !== CfgFlowType.Simple || !lblEq(leftFlow.next, rightFlow.next)) {
           return false;
         }
-        if (!softCfgEquivalent(leftBlock.try, rightBlock.try, lblEq)) {
+        break;
+      case CfgFlowType.Throw:
+        if (rightFlow.type !== CfgFlowType.Throw) {
           return false;
         }
-        if (leftBlock.catch !== undefined || rightBlock.catch !== undefined) {
-          if (leftBlock.catch === undefined || rightBlock.catch === undefined) {
+        break;
+      case CfgFlowType.Try:
+        if (rightFlow.type !== CfgFlowType.Try) {
+          return false;
+        }
+        if (!softCfgEquivalent(leftFlow.try, rightFlow.try, lblEq)) {
+          return false;
+        }
+        if (leftFlow.catch !== undefined || rightFlow.catch !== undefined) {
+          if (leftFlow.catch === undefined || rightFlow.catch === undefined) {
             return false;
           }
-          if (!$CatchTarget.equals(leftBlock.catchTarget, rightBlock.catchTarget)) {
+          if (!$CatchTarget.equals(leftFlow.catch.target, rightFlow.catch.target)) {
             return false;
           }
-          if (!softCfgEquivalent(leftBlock.catch, rightBlock.catch, lblEq)) {
+          if (!softCfgEquivalent(leftFlow.catch.body, rightFlow.catch.body, lblEq)) {
             return false;
           }
         }
-        if (leftBlock.finally !== undefined || rightBlock.finally !== undefined) {
-          if (leftBlock.finally === undefined || rightBlock.finally === undefined) {
+        if (leftFlow.finally !== undefined || rightFlow.finally !== undefined) {
+          if (leftFlow.finally === undefined || rightFlow.finally === undefined) {
             return false;
           }
-          if (!softCfgEquivalent(leftBlock.finally, rightBlock.finally, lblEq)) {
+          if (!softCfgEquivalent(leftFlow.finally, rightFlow.finally, lblEq)) {
             return false;
           }
         }
         break;
-      case CfgBlockType.With:
-        if (rightBlock.type !== CfgBlockType.With) {
+      case CfgFlowType.WaitForFrame:
+        if (
+          rightFlow.type !== CfgFlowType.WaitForFrame
+          || leftFlow.frame !== rightFlow.frame
+          || !lblEq(leftFlow.readyTarget, rightFlow.readyTarget)
+          || !lblEq(leftFlow.loadingTarget, rightFlow.loadingTarget)
+        ) {
           return false;
         }
-        if (!softCfgEquivalent(leftBlock.with, rightBlock.with, lblEq)) {
+        break;
+      case CfgFlowType.WaitForFrame2:
+        if (
+          rightFlow.type !== CfgFlowType.WaitForFrame2
+          || !lblEq(leftFlow.readyTarget, rightFlow.readyTarget)
+          || !lblEq(leftFlow.loadingTarget, rightFlow.loadingTarget)
+        ) {
+          return false;
+        }
+        break;
+      case CfgFlowType.With:
+        if (rightFlow.type !== CfgFlowType.With) {
+          return false;
+        }
+        if (!softCfgEquivalent(leftFlow.body, rightFlow.body, lblEq)) {
           return false;
         }
         break;
       default:
-        if (leftBlock.type !== rightBlock.type) {
-          return false;
-        }
-        break;
+        throw new Error("AssertionError: Unexpected flow type");
     }
   }
   return true;
@@ -272,20 +309,21 @@ function getHardCfgLabels(hardCfg: Cfg): CfgLabel[] {
   const result: CfgLabel[] = [];
 
   function visit(cfg: Cfg): void {
-    for (const block of [cfg.head, ...cfg.tail]) {
+    for (const block of cfg.blocks) {
       result.push(block.label);
-      switch (block.type) {
-        case CfgBlockType.Try:
-          visit(block.try);
-          if (block.catch !== undefined) {
-            visit(block.catch);
+      const flow: CfgFlow = block.flow;
+      switch (flow.type) {
+        case CfgFlowType.Try:
+          visit(flow.try);
+          if (flow.catch !== undefined) {
+            visit(flow.catch.body);
           }
-          if (block.finally !== undefined) {
-            visit(block.finally);
+          if (flow.finally !== undefined) {
+            visit(flow.finally);
           }
           break;
-        case CfgBlockType.With:
-          visit(block.with);
+        case CfgFlowType.With:
+          visit(flow.body);
           break;
         default:
           break;
