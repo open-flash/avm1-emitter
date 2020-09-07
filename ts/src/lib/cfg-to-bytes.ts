@@ -1,18 +1,19 @@
 // tslint:disable:restrict-plus-operands
 
-import { WritableByteStream, WritableStream } from "@open-flash/stream";
-import { ActionType } from "avm1-types/action-type";
-import { DefineFunction as CfgDefineFunction } from "avm1-types/cfg/actions/define-function";
-import { DefineFunction2 as CfgDefineFunction2 } from "avm1-types/cfg/actions/define-function2";
-import { Cfg } from "avm1-types/cfg/cfg";
-import { CfgBlock } from "avm1-types/cfg/cfg-block";
-import { CfgFlow } from "avm1-types/cfg/cfg-flow";
-import { CfgFlowType } from "avm1-types/cfg/cfg-flow-type";
-import { CfgLabel, NullableCfgLabel } from "avm1-types/cfg/cfg-label";
-import { Try as RawTry } from "avm1-types/raw/actions/try";
-import { CatchBlock as RawCatchBlock } from "avm1-types/raw/catch-block";
+import stream, { WritableByteStream } from "@open-flash/stream";
+import { ActionType } from "avm1-types/lib/action-type.js";
+import { DefineFunction as CfgDefineFunction } from "avm1-types/lib/cfg/actions/define-function.js";
+import { DefineFunction2 as CfgDefineFunction2 } from "avm1-types/lib/cfg/actions/define-function2.js";
+import { CfgBlock } from "avm1-types/lib/cfg/cfg-block.js";
+import { CfgFlowType } from "avm1-types/lib/cfg/cfg-flow-type.js";
+import { CfgFlow } from "avm1-types/lib/cfg/cfg-flow.js";
+import { CfgLabel, NullableCfgLabel } from "avm1-types/lib/cfg/cfg-label.js";
+import { Cfg } from "avm1-types/lib/cfg/cfg.js";
+import { Try as RawTry } from "avm1-types/lib/raw/actions/try.js";
+import { CatchBlock as RawCatchBlock } from "avm1-types/lib/raw/catch-block.js";
 import { UintSize } from "semantic-types";
-import { emitAction } from "./emitters/avm1";
+
+import { emitAction } from "./emitters/avm1.js";
 
 /**
  * Size of the offset in `If` and `Jump` actions (in bytes).
@@ -24,15 +25,15 @@ export function cfgToBytes(cfg: Cfg): Uint8Array {
 }
 
 function emitHardCfg(cfg: Cfg, appendEndAction: boolean): Uint8Array {
-  const stream: WritableByteStream = new WritableStream();
-  const wi: WriteInfo = emitSoftCfg(stream, cfg, null);
-  const endOffset: UintSize = stream.bytePos;
+  const s: WritableByteStream = new stream.WritableStream();
+  const wi: WriteInfo = emitSoftCfg(s, cfg, null);
+  const endOffset: UintSize = s.bytePos;
 
   if (appendEndAction) {
-    emitEndAction(stream);
+    emitEndAction(s);
   }
 
-  const bytes: Uint8Array = stream.getBytes();
+  const bytes: Uint8Array = s.getBytes();
 
   const view: DataView = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (const [offset, targetLabel] of wi.jumps) {
@@ -79,57 +80,57 @@ function emitSoftCfg(
 
 // tslint:disable-next-line:cyclomatic-complexity
 function emitBlock(
-  stream: WritableByteStream,
+  outStream: WritableByteStream,
   block: CfgBlock,
   fallthroughNext: NullableCfgLabel,
 ): WriteInfo {
   const jumps: Map<UintSize, NullableCfgLabel> = new Map();
   const blocks: Map<CfgLabel, UintSize> = new Map();
 
-  blocks.set(block.label, stream.bytePos);
+  blocks.set(block.label, outStream.bytePos);
 
   for (const action of block.actions) {
     switch (action.action) {
       case ActionType.DefineFunction:
-        emitDefineFunctionAction(stream, action);
+        emitDefineFunctionAction(outStream, action);
         break;
       case ActionType.DefineFunction2:
-        emitDefineFunction2Action(stream, action);
+        emitDefineFunction2Action(outStream, action);
         break;
       default:
-        emitAction(stream, action);
+        emitAction(outStream, action);
         break;
     }
   }
   const flow: CfgFlow = block.flow;
   switch (flow.type) {
     case CfgFlowType.Error:
-      emitError(stream);
+      emitError(outStream);
       break;
     case CfgFlowType.If:
-      jumps.set(emitIfAction(stream), flow.trueTarget);
+      jumps.set(emitIfAction(outStream), flow.trueTarget);
       if (fallthroughNext !== flow.falseTarget) {
         if (flow.falseTarget === null) {
-          emitEndAction(stream);
+          emitEndAction(outStream);
         } else {
-          jumps.set(emitJumpAction(stream), flow.falseTarget);
+          jumps.set(emitJumpAction(outStream), flow.falseTarget);
         }
       }
       break;
     case CfgFlowType.Simple:
       if (fallthroughNext !== flow.next) {
         if (flow.next === null) {
-          emitEndAction(stream);
+          emitEndAction(outStream);
         } else {
-          jumps.set(emitJumpAction(stream), flow.next);
+          jumps.set(emitJumpAction(outStream), flow.next);
         }
       }
       break;
     case CfgFlowType.Return:
-      emitAction(stream, {action: ActionType.Return});
+      emitAction(outStream, {action: ActionType.Return});
       break;
     case CfgFlowType.Throw:
-      emitAction(stream, {action: ActionType.Throw});
+      emitAction(outStream, {action: ActionType.Throw});
       break;
     case CfgFlowType.Try: {
       const finallyNext: NullableCfgLabel = fallthroughNext;
@@ -140,10 +141,10 @@ function emitBlock(
         ? flow.catch.body.blocks[0].label
         : catchNext;
 
-      const tryStream: WritableByteStream = new WritableStream();
+      const tryStream: WritableByteStream = new stream.WritableStream();
       const tryWi: WriteInfo = emitSoftCfg(tryStream, flow.try, tryNext);
 
-      const catchStream: WritableByteStream = new WritableStream();
+      const catchStream: WritableByteStream = new stream.WritableStream();
       let rawCatch: {block: RawCatchBlock; info: WriteInfo} | undefined;
       if (flow.catch !== undefined) {
         const info: WriteInfo = emitSoftCfg(catchStream, flow.catch.body, catchNext);
@@ -154,7 +155,7 @@ function emitBlock(
         rawCatch = {block, info};
       }
 
-      const finallyStream: WritableByteStream = new WritableStream();
+      const finallyStream: WritableByteStream = new stream.WritableStream();
       let finallyWi: WriteInfo | undefined;
       if (flow.finally !== undefined) {
         finallyWi = emitSoftCfg(finallyStream, flow.finally, finallyNext);
@@ -167,58 +168,58 @@ function emitBlock(
         finally: finallyWi !== undefined ? finallyStream.bytePos : undefined,
       };
 
-      emitAction(stream, rawTry);
+      emitAction(outStream, rawTry);
 
       for (const [offset, target] of tryWi.jumps) {
-        jumps.set(stream.bytePos + offset, target);
+        jumps.set(outStream.bytePos + offset, target);
       }
       for (const [label, offset] of tryWi.blocks) {
-        blocks.set(label, stream.bytePos + offset);
+        blocks.set(label, outStream.bytePos + offset);
       }
-      stream.write(tryStream);
+      outStream.write(tryStream);
 
       if (rawCatch !== undefined) {
         for (const [offset, target] of rawCatch.info.jumps) {
-          jumps.set(stream.bytePos + offset, target);
+          jumps.set(outStream.bytePos + offset, target);
         }
         for (const [label, offset] of rawCatch.info.blocks) {
-          blocks.set(label, stream.bytePos + offset);
+          blocks.set(label, outStream.bytePos + offset);
         }
-        stream.write(catchStream);
+        outStream.write(catchStream);
       }
 
       if (finallyWi !== undefined) {
         for (const [offset, target] of finallyWi.jumps) {
-          jumps.set(stream.bytePos + offset, target);
+          jumps.set(outStream.bytePos + offset, target);
         }
         for (const [label, offset] of finallyWi.blocks) {
-          blocks.set(label, stream.bytePos + offset);
+          blocks.set(label, outStream.bytePos + offset);
         }
-        stream.write(finallyStream);
+        outStream.write(finallyStream);
       }
       break;
     }
     case CfgFlowType.WaitForFrame:
-      emitAction(stream, {action: ActionType.WaitForFrame, frame: flow.frame, skip: 1});
-      jumps.set(emitJumpAction(stream), flow.readyTarget);
-      jumps.set(emitJumpAction(stream), flow.loadingTarget);
+      emitAction(outStream, {action: ActionType.WaitForFrame, frame: flow.frame, skip: 1});
+      jumps.set(emitJumpAction(outStream), flow.readyTarget);
+      jumps.set(emitJumpAction(outStream), flow.loadingTarget);
       break;
     case CfgFlowType.WaitForFrame2:
-      emitAction(stream, {action: ActionType.WaitForFrame2, skip: 1});
-      jumps.set(emitJumpAction(stream), flow.readyTarget);
-      jumps.set(emitJumpAction(stream), flow.loadingTarget);
+      emitAction(outStream, {action: ActionType.WaitForFrame2, skip: 1});
+      jumps.set(emitJumpAction(outStream), flow.readyTarget);
+      jumps.set(emitJumpAction(outStream), flow.loadingTarget);
       break;
     case CfgFlowType.With: {
-      const withStream: WritableByteStream = new WritableStream();
+      const withStream: WritableByteStream = new stream.WritableStream();
       const withWi: WriteInfo = emitSoftCfg(withStream, flow.body, fallthroughNext);
-      emitAction(stream, {action: ActionType.With, size: withStream.bytePos});
+      emitAction(outStream, {action: ActionType.With, size: withStream.bytePos});
       for (const [offset, target] of withWi.jumps) {
-        jumps.set(stream.bytePos + offset, target);
+        jumps.set(outStream.bytePos + offset, target);
       }
       for (const [label, offset] of withWi.blocks) {
-        blocks.set(label, stream.bytePos + offset);
+        blocks.set(label, outStream.bytePos + offset);
       }
-      stream.write(withStream);
+      outStream.write(withStream);
       break;
     }
     default:

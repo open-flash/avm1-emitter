@@ -1,14 +1,14 @@
-import { WritableByteStream as ByteStream, WritableStream as Stream } from "@open-flash/stream";
-import { ActionType } from "avm1-types/action-type";
-import { CatchTarget } from "avm1-types/catch-target";
-import { CatchTargetType } from "avm1-types/catch-targets/_type";
-import { GetUrl2Method } from "avm1-types/get-url2-method";
-import { PushValue } from "avm1-types/push-value";
-import { PushValueType } from "avm1-types/push-value-type";
-import { Action as RawAction } from "avm1-types/raw/action";
-import * as actions from "avm1-types/raw/actions/index";
-import { Incident } from "incident";
-import { Uint16, Uint2, Uint8, UintSize } from "semantic-types";
+import stream, { WritableByteStream as ByteStream } from "@open-flash/stream";
+import { ActionType } from "avm1-types/lib/action-type.js";
+import { CatchTarget } from "avm1-types/lib/catch-target.js";
+import { CatchTargetType } from "avm1-types/lib/catch-targets/_type.js";
+import { GetUrl2Method } from "avm1-types/lib/get-url2-method.js";
+import { PushValueType } from "avm1-types/lib/push-value-type.js";
+import { PushValue } from "avm1-types/lib/push-value.js";
+import { Action as RawAction } from "avm1-types/lib/raw/action.js";
+import * as actions from "avm1-types/lib/raw/actions/index.js";
+import incident from "incident";
+import { Uint2, Uint8, Uint16, UintSize } from "semantic-types";
 
 export interface ActionHeader {
   actionCode: Uint8;
@@ -132,7 +132,7 @@ export function emitAction(byteStream: ByteStream, value: RawAction): void {
   const actionEmitter: ActionEmitter | undefined = ACTION_TYPE_TO_EMITTER.get(value.action);
 
   if (actionEmitter === undefined) {
-    throw new Incident("UnexpectedAction", {type: value.action, typeName: ActionType[value.action]});
+    throw new incident.Incident("UnexpectedAction", {type: value.action, typeName: ActionType[value.action]});
   }
 
   if (typeof actionEmitter === "number") {
@@ -140,7 +140,7 @@ export function emitAction(byteStream: ByteStream, value: RawAction): void {
     return;
   }
 
-  const actionStream: Stream = new Stream();
+  const actionStream: stream.WritableStream = new stream.WritableStream();
   actionEmitter[0](actionStream, value);
   emitActionHeader(
     byteStream,
@@ -307,7 +307,7 @@ export function emitActionValue(byteStream: ByteStream, value: PushValue): void 
       byteStream.writeUint8(3);
       break;
     default:
-      throw new Incident("UnexpectedValueType");
+      throw new incident.Incident("UnexpectedValueType");
   }
 }
 
@@ -323,7 +323,7 @@ export function emitGetUrl2Action(byteStream: ByteStream, value: actions.GetUrl2
   ]);
   const methodCode: Uint2 | undefined = METHOD_TO_CODE.get(value.method);
   if (methodCode === undefined) {
-    throw new Incident("UnexpectedGetUrl2Method");
+    throw new incident.Incident("UnexpectedGetUrl2Method");
   }
 
   const flags: Uint8 = 0

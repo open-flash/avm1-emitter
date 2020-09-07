@@ -1,2 +1,2 @@
-export { emitAction } from "./emitters/avm1";
-export { cfgToBytes } from "./cfg-to-bytes";
+export { emitAction } from "./emitters/avm1.js";
+export { cfgToBytes } from "./cfg-to-bytes.js";

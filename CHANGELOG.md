@@ -1,3 +1,12 @@
+# Next
+
+- **[Breaking change]** Update to `avm1-types@0.11`.
+
+## TypeScript
+
+- **[Breaking change]** Update to native ESM.
+- **[Internal]** Switch from `tslint` to `eslint`.
+
 # 0.10.0 (2020-10-23)
 
 - **[Breaking change]** Update to `avm1-types@0.10`.

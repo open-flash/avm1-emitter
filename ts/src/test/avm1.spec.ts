@@ -1,30 +1,29 @@
-import { toAasm } from "avm1-asm/to-aasm";
+import toAasm from "avm1-asm/to-aasm.js";
 import { parseCfg } from "avm1-parser";
-import { ActionType } from "avm1-types/action-type";
-import { $CatchTarget } from "avm1-types/catch-target";
-import { $Action, Action } from "avm1-types/cfg/action";
-import { $Cfg, Cfg } from "avm1-types/cfg/cfg";
-import { CfgBlock } from "avm1-types/cfg/cfg-block";
-import { CfgFlow } from "avm1-types/cfg/cfg-flow";
-import { CfgFlowType } from "avm1-types/cfg/cfg-flow-type";
-import { CfgLabel, NullableCfgLabel } from "avm1-types/cfg/cfg-label";
-import { $Parameter, Parameter } from "avm1-types/parameter";
+import { ActionType } from "avm1-types/lib/action-type.js";
+import { $CatchTarget } from "avm1-types/lib/catch-target.js";
+import { $Action, Action } from "avm1-types/lib/cfg/action.js";
+import { CfgBlock } from "avm1-types/lib/cfg/cfg-block.js";
+import { CfgFlowType } from "avm1-types/lib/cfg/cfg-flow-type.js";
+import { CfgFlow } from "avm1-types/lib/cfg/cfg-flow.js";
+import { CfgLabel, NullableCfgLabel } from "avm1-types/lib/cfg/cfg-label.js";
+import { $Cfg, Cfg } from "avm1-types/lib/cfg/cfg.js";
+import { $Parameter, Parameter } from "avm1-types/lib/parameter.js";
 import chai from "chai";
 import fs from "fs";
-import { JsonReader } from "kryo/readers/json";
-import { JsonValueWriter } from "kryo/writers/json-value";
+import { JSON_READER } from "kryo-json/lib/json-reader.js";
+import { JSON_VALUE_WRITER } from "kryo-json/lib/json-value-writer.js";
 import sysPath from "path";
 import { UintSize } from "semantic-types";
-import { cfgToBytes } from "../lib";
-import meta from "./meta.js";
-import { readTextFile, writeFile, writeTextFile } from "./utils";
 
-const PROJECT_ROOT: string = sysPath.join(meta.dirname, "..", "..", "..");
+import { cfgToBytes } from "../lib/index.js";
+import meta from "./meta.js";
+import { readTextFile, writeFile, writeTextFile } from "./utils.js";
+
+const PROJECT_ROOT: string = sysPath.join(meta.dirname, "..");
 const REPO_ROOT: string = sysPath.join(PROJECT_ROOT, "..");
 const AVM1_SAMPLES_ROOT: string = sysPath.join(REPO_ROOT, "tests", "avm1");
 
-const JSON_READER: JsonReader = new JsonReader();
-const JSON_VALUE_WRITER: JsonValueWriter = new JsonValueWriter();
 // `BLACKLIST` can be used to forcefully skip some tests.
 const BLACKLIST: ReadonlySet<string> = new Set([
   "avm1-bytes/misaligned-jump",  // Requires normalization
@@ -58,7 +57,7 @@ describe("avm1", function () {
       await writeTextFile(sysPath.join(sample.root, "local-cfg.ts.json"), `${actualCfgJson}\n`);
 
       try {
-        const aasm1: string = toAasm(actualCfg);
+        const aasm1: string = toAasm.toAasm(actualCfg);
         await writeTextFile(sysPath.join(sample.root, "local-main.ts.aasm1"), `${aasm1}\n`);
       } catch (e) {
         console.warn(e);
