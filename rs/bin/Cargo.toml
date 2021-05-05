@@ -1,0 +1,21 @@
+[package]
+name = "avm1-emitter-bin"
+version = "0.1.0"
+authors = ["Charles Samborski <demurgos@demurgos.net>"]
+description = "AVM1 bytecode emitter"
+documentation = "https://github.com/open-flash/avm1-emitter"
+homepage = "https://github.com/open-flash/avm1-emitter"
+repository = "https://github.com/open-flash/avm1-emitter"
+readme = "../README.md"
+keywords = ["emitter", "swf", "flash", "avm1"]
+license = "AGPL-3.0-or-later"
+edition = "2018"
+
+[[bin]]
+name = "avm1-emitter"
+path = "src/main.rs"
+
+[dependencies]
+serde_json_v8 = "^0.0.1"
+avm1-emitter = { path = "../" }
+avm1-types = "^0.10.0"
