@@ -185,6 +185,12 @@ fn write_block(
   Ok(res)
 }
 
+pub fn emit_raw_action(value: &raw::Action) -> io::Result<Vec<u8>> {
+  let mut writer = PatchableBufWriter::new();
+  write_raw_action(&mut writer, value)?;
+  Ok(writer.complete())
+}
+
 fn write_raw_action(writer: &mut PatchableBufWriter, value: &raw::Action) -> io::Result<()> {
   macro_rules! raw {
     ($c: literal) => {{
