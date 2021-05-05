@@ -198,6 +198,7 @@ fn write_raw_action(writer: &mut PatchableBufWriter, value: &raw::Action) -> io:
       if $c >= 0x80 {
         emit_le_u16(writer, 0)?;
       };
+      Ok(())
     }};
     ($c: literal, $f: ident, $a: expr) => {{
       debug_assert!($c >= 0x80);
@@ -208,6 +209,7 @@ fn write_raw_action(writer: &mut PatchableBufWriter, value: &raw::Action) -> io:
       let body_end = writer.len();
       let body_len = body_end - body_start;
       hole.patch(writer, body_len.try_into().unwrap());
+      Ok(())
     }};
   }
 
@@ -284,7 +286,17 @@ fn write_raw_action(writer: &mut PatchableBufWriter, value: &raw::Action) -> io:
     Push(ref a) => raw!(0x96, write_raw_push, a),
     PushDuplicate => raw!(0x4c),
     RandomNumber => raw!(0x30),
-    Raw(_) => todo!(),
+    Raw(ref a) => {
+      emit_u8(writer, a.code)?;
+      if a.code < 0x80 {
+        assert!(a.data.is_empty());
+      } else {
+        let body_len = u16::try_from(a.data.len()).unwrap();
+        emit_le_u16(writer, body_len)?;
+        writer.write_all(&a.data)?;
+      }
+      Ok(())
+    }
     Return => raw!(0x3e),
     RemoveSprite => raw!(0x25),
     SetMember => raw!(0x4f),
@@ -318,9 +330,7 @@ fn write_raw_action(writer: &mut PatchableBufWriter, value: &raw::Action) -> io:
     WaitForFrame(ref a) => raw!(0x8a, write_raw_wait_for_frame, a),
     WaitForFrame2(ref a) => raw!(0x8d, write_raw_wait_for_frame2, a),
     With(ref a) => raw!(0x94, write_raw_with, a),
-  };
-
-  Ok(())
+  }
 }
 
 fn write_raw_constant_pool<W: io::Write>(writer: &mut W, value: &raw::ConstantPool) -> io::Result<()> {
