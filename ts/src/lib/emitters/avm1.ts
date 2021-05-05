@@ -1,4 +1,5 @@
-import stream, { WritableByteStream as ByteStream } from "@open-flash/stream";
+import * as stream from "@open-flash/stream";
+import { WritableByteStream as ByteStream } from "@open-flash/stream";
 import { ActionType } from "avm1-types/lib/action-type.js";
 import { CatchTarget } from "avm1-types/lib/catch-target.js";
 import { CatchTargetType } from "avm1-types/lib/catch-targets/_type.js";
@@ -8,7 +9,7 @@ import { PushValue } from "avm1-types/lib/push-value.js";
 import { Action as RawAction } from "avm1-types/lib/raw/action.js";
 import * as actions from "avm1-types/lib/raw/actions/index.js";
 import incident from "incident";
-import { Uint2, Uint8, Uint16, UintSize } from "semantic-types";
+import { Uint16, Uint2, Uint8, UintSize } from "semantic-types";
 
 export interface ActionHeader {
   actionCode: Uint8;
@@ -24,6 +25,12 @@ export function emitActionHeader(byteStream: ByteStream, value: ActionHeader): v
 
 // tslint:disable-next-line:cyclomatic-complexity
 export function emitAction(byteStream: ByteStream, value: RawAction): void {
+  if (value.action === ActionType.Error) {
+    throw new Error("NotImplemented");
+  } else if (value.action === ActionType.Raw) {
+    throw new Error("NotImplemented");
+  }
+
   type ActionEmitter = number | [(byteStream: ByteStream, value: RawAction) => void | UintSize, number];
 
   const ACTION_TYPE_TO_EMITTER: Map<ActionType, ActionEmitter> = new Map<ActionType, ActionEmitter>(<any[]> [
@@ -52,6 +59,7 @@ export function emitAction(byteStream: ByteStream, value: RawAction): void {
     [ActionType.Delete, 0x3a],
     [ActionType.Delete2, 0x3b],
     [ActionType.Divide, 0x0d],
+    [ActionType.End, 0x00],
     [ActionType.EndDrag, 0x28],
     [ActionType.Enumerate, 0x46],
     [ActionType.Enumerate2, 0x55],
@@ -95,6 +103,7 @@ export function emitAction(byteStream: ByteStream, value: RawAction): void {
     [ActionType.Push, [emitPushAction, 0x96]],
     [ActionType.PushDuplicate, 0x4c],
     [ActionType.RandomNumber, 0x30],
+    [ActionType.Raw, ],
     [ActionType.Return, 0x3e],
     [ActionType.RemoveSprite, 0x25],
     [ActionType.SetMember, 0x4f],
@@ -108,6 +117,7 @@ export function emitAction(byteStream: ByteStream, value: RawAction): void {
     [ActionType.StopSounds, 0x09],
     [ActionType.StoreRegister, [emitStoreRegisterAction, 0x87]],
     [ActionType.StrictEquals, 0x66],
+    [ActionType.StrictMode, [emitStrictModeAction, 0x89]],
     [ActionType.StringAdd, 0x21],
     [ActionType.StringEquals, 0x13],
     [ActionType.StringExtract, 0x15],
@@ -152,19 +162,6 @@ export function emitAction(byteStream: ByteStream, value: RawAction): void {
   byteStream.write(actionStream);
 }
 
-export function emitGotoFrameAction(byteStream: ByteStream, value: actions.GotoFrame): void {
-  byteStream.writeUint16LE(value.frame);
-}
-
-export function emitGetUrlAction(byteStream: ByteStream, value: actions.GetUrl): void {
-  byteStream.writeNulUtf8(value.url);
-  byteStream.writeNulUtf8(value.target);
-}
-
-export function emitStoreRegisterAction(byteStream: ByteStream, value: actions.StoreRegister): void {
-  byteStream.writeUint8(value.register);
-}
-
 export function emitConstantPoolAction(byteStream: ByteStream, value: actions.ConstantPool): void {
   byteStream.writeUint16LE(value.pool.length);
   for (const constant of value.pool) {
@@ -172,21 +169,21 @@ export function emitConstantPoolAction(byteStream: ByteStream, value: actions.Co
   }
 }
 
-export function emitWaitForFrameAction(byteStream: ByteStream, value: actions.WaitForFrame): void {
-  byteStream.writeUint16LE(value.frame);
-  byteStream.writeUint8(value.skip);
-}
+/**
+ * Emits a DefineFunction action.
+ *
+ * @param byteStream The bytestream used to emit the action.
+ * @param value DefineFunction action to emit.
+ * @returns The length for the action header (excluding the function body).
+ */
+export function emitDefineFunctionAction(byteStream: ByteStream, value: actions.DefineFunction): void {
+  byteStream.writeNulUtf8(value.name);
+  byteStream.writeUint16LE(value.parameters.length);
+  for (const parameter of value.parameters) {
+    byteStream.writeNulUtf8(parameter);
+  }
 
-export function emitSetTargetAction(byteStream: ByteStream, value: actions.SetTarget): void {
-  byteStream.writeNulUtf8(value.targetName);
-}
-
-export function emitGotoLabelAction(byteStream: ByteStream, value: actions.GotoLabel): void {
-  byteStream.writeNulUtf8(value.label);
-}
-
-export function emitWaitForFrame2Action(byteStream: ByteStream, value: actions.WaitForFrame2): void {
-  byteStream.writeUint8(value.skip);
+  byteStream.writeUint16LE(value.bodySize);
 }
 
 /**
@@ -220,43 +217,56 @@ export function emitDefineFunction2Action(byteStream: ByteStream, value: actions
   byteStream.writeUint16LE(value.bodySize);
 }
 
-function emitCatchTarget(byteStream: ByteStream, value: CatchTarget): void {
-  if (value.type === CatchTargetType.Register) {
-    byteStream.writeUint8(value.target);
-  } else {
-    byteStream.writeNulUtf8(value.target);
+export function emitGetUrlAction(byteStream: ByteStream, value: actions.GetUrl): void {
+  byteStream.writeNulUtf8(value.url);
+  byteStream.writeNulUtf8(value.target);
+}
+
+export function emitGetUrl2Action(byteStream: ByteStream, value: actions.GetUrl2): void {
+  const METHOD_TO_CODE: Map<GetUrl2Method, Uint2> = new Map([
+    [GetUrl2Method.None, 0 as Uint2],
+    [GetUrl2Method.Get, 1 as Uint2],
+    [GetUrl2Method.Post, 2 as Uint2],
+  ]);
+  const methodCode: Uint2 | undefined = METHOD_TO_CODE.get(value.method);
+  if (methodCode === undefined) {
+    throw new incident.Incident("UnexpectedGetUrl2Method");
+  }
+
+  const flags: Uint8 = 0
+    | (value.loadVariables ? 1 << 0 : 0)
+    | (value.loadTarget ? 1 << 1 : 0)
+    | (methodCode << 6);
+
+  byteStream.writeUint8(flags);
+}
+
+export function emitGotoFrameAction(byteStream: ByteStream, value: actions.GotoFrame): void {
+  byteStream.writeUint16LE(value.frame);
+}
+
+export function emitGotoFrame2Action(byteStream: ByteStream, value: actions.GotoFrame2): void {
+  const hasSceneBias: boolean = value.sceneBias !== 0;
+  const flags: Uint8 = 0
+    | (value.play ? 1 << 0 : 0)
+    | (hasSceneBias ? 1 << 1 : 0);
+  // Skip 6 bits
+  byteStream.writeUint8(flags);
+  if (hasSceneBias) {
+    byteStream.writeUint16LE(value.sceneBias);
   }
 }
 
-export function emitTryAction(byteStream: ByteStream, value: actions.Try): void {
-  const catchInRegister: boolean = value.catch !== undefined
-    && value.catch.target.type === CatchTargetType.Register;
-
-  const flags: Uint8 = 0
-    | (value.catch !== undefined ? 1 << 0 : 0)
-    | (value.finally !== undefined ? 1 << 1 : 0)
-    | (catchInRegister ? 1 << 2 : 0);
-  // (Skip 5 bits)
-  byteStream.writeUint8(flags);
-
-  byteStream.writeUint16LE(value.try);
-  byteStream.writeUint16LE(value.catch !== undefined ? value.catch.size : 0);
-  byteStream.writeUint16LE(value.finally !== undefined ? value.finally : 0);
-  emitCatchTarget(
-    byteStream,
-    value.catch !== undefined ? value.catch.target : {type: CatchTargetType.Register, target: 0},
-  );
+export function emitGotoLabelAction(byteStream: ByteStream, value: actions.GotoLabel): void {
+  byteStream.writeNulUtf8(value.label);
 }
 
-/**
- * Emits a With action.
- *
- * @param byteStream The bytestream used to emit the action.
- * @param value With action to emit.
- * @returns The length for the action header (excluding the with body).
- */
-export function emitWithAction(byteStream: ByteStream, value: actions.With): void {
-  byteStream.writeUint16LE(value.size);
+export function emitIfAction(byteStream: ByteStream, value: actions.If): void {
+  byteStream.writeSint16LE(value.offset);
+}
+
+export function emitJumpAction(byteStream: ByteStream, value: actions.Jump): void {
+  byteStream.writeSint16LE(value.offset);
 }
 
 export function emitPushAction(byteStream: ByteStream, value: actions.Push): void {
@@ -294,7 +304,7 @@ export function emitActionValue(byteStream: ByteStream, value: PushValue): void 
       break;
     case PushValueType.Float64:
       byteStream.writeUint8(6);
-      byteStream.writeFloat64LE(value.value);
+      byteStream.writeFloat64LE32(value.value);
       break;
     case PushValueType.Null:
       byteStream.writeUint8(2);
@@ -311,58 +321,62 @@ export function emitActionValue(byteStream: ByteStream, value: PushValue): void 
   }
 }
 
-export function emitJumpAction(byteStream: ByteStream, value: actions.Jump): void {
-  byteStream.writeUint16LE(value.offset);
+export function emitSetTargetAction(byteStream: ByteStream, value: actions.SetTarget): void {
+  byteStream.writeNulUtf8(value.targetName);
 }
 
-export function emitGetUrl2Action(byteStream: ByteStream, value: actions.GetUrl2): void {
-  const METHOD_TO_CODE: Map<GetUrl2Method, Uint2> = new Map([
-    [GetUrl2Method.None, 0 as Uint2],
-    [GetUrl2Method.Get, 1 as Uint2],
-    [GetUrl2Method.Post, 2 as Uint2],
-  ]);
-  const methodCode: Uint2 | undefined = METHOD_TO_CODE.get(value.method);
-  if (methodCode === undefined) {
-    throw new incident.Incident("UnexpectedGetUrl2Method");
-  }
+export function emitStoreRegisterAction(byteStream: ByteStream, value: actions.StoreRegister): void {
+  byteStream.writeUint8(value.register);
+}
+
+export function emitStrictModeAction(byteStream: ByteStream, value: actions.StrictMode): void {
+  byteStream.writeUint8(value.isStrict ? 1 : 0);
+}
+
+export function emitTryAction(byteStream: ByteStream, value: actions.Try): void {
+  const catchInRegister: boolean = value.catch !== undefined
+    && value.catch.target.type === CatchTargetType.Register;
 
   const flags: Uint8 = 0
-    | (value.loadVariables ? 1 << 0 : 0)
-    | (value.loadTarget ? 1 << 1 : 0)
-    | (methodCode << 6);
-
+    | (value.catch !== undefined ? 1 << 0 : 0)
+    | (value.finally !== undefined ? 1 << 1 : 0)
+    | (catchInRegister ? 1 << 2 : 0);
+  // (Skip 5 bits)
   byteStream.writeUint8(flags);
+
+  byteStream.writeUint16LE(value.try);
+  byteStream.writeUint16LE(value.catch !== undefined ? value.catch.size : 0);
+  byteStream.writeUint16LE(value.finally !== undefined ? value.finally : 0);
+  emitCatchTarget(
+    byteStream,
+    value.catch !== undefined ? value.catch.target : {type: CatchTargetType.Register, target: 0},
+  );
+}
+
+function emitCatchTarget(byteStream: ByteStream, value: CatchTarget): void {
+  if (value.type === CatchTargetType.Register) {
+    byteStream.writeUint8(value.target);
+  } else {
+    byteStream.writeNulUtf8(value.target);
+  }
+}
+
+export function emitWaitForFrameAction(byteStream: ByteStream, value: actions.WaitForFrame): void {
+  byteStream.writeUint16LE(value.frame);
+  byteStream.writeUint8(value.skip);
+}
+
+export function emitWaitForFrame2Action(byteStream: ByteStream, value: actions.WaitForFrame2): void {
+  byteStream.writeUint8(value.skip);
 }
 
 /**
- * Emits a DefineFunction action.
+ * Emits a With action.
  *
  * @param byteStream The bytestream used to emit the action.
- * @param value DefineFunction action to emit.
- * @returns The length for the action header (excluding the function body).
+ * @param value With action to emit.
+ * @returns The length for the action header (excluding the with body).
  */
-export function emitDefineFunctionAction(byteStream: ByteStream, value: actions.DefineFunction): void {
-  byteStream.writeNulUtf8(value.name);
-  byteStream.writeUint16LE(value.parameters.length);
-  for (const parameter of value.parameters) {
-    byteStream.writeNulUtf8(parameter);
-  }
-
-  byteStream.writeUint16LE(value.bodySize);
-}
-
-export function emitIfAction(byteStream: ByteStream, value: actions.If): void {
-  byteStream.writeUint16LE(value.offset);
-}
-
-export function emitGotoFrame2Action(byteStream: ByteStream, value: actions.GotoFrame2): void {
-  const hasSceneBias: boolean = value.sceneBias !== 0;
-  const flags: Uint8 = 0
-    | (value.play ? 1 << 0 : 0)
-    | (hasSceneBias ? 1 << 1 : 0);
-  byteStream.writeUint8(flags);
-  // Skip 6 bits
-  if (hasSceneBias) {
-    byteStream.writeUint16LE(value.sceneBias);
-  }
+export function emitWithAction(byteStream: ByteStream, value: actions.With): void {
+  byteStream.writeUint16LE(value.size);
 }

@@ -1,6 +1,7 @@
 // tslint:disable:restrict-plus-operands
 
-import stream, { WritableByteStream } from "@open-flash/stream";
+import * as stream from "@open-flash/stream";
+import { WritableByteStream } from "@open-flash/stream";
 import { ActionType } from "avm1-types/lib/action-type.js";
 import { DefineFunction as CfgDefineFunction } from "avm1-types/lib/cfg/actions/define-function.js";
 import { DefineFunction2 as CfgDefineFunction2 } from "avm1-types/lib/cfg/actions/define-function2.js";

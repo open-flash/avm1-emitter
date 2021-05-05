@@ -1,4 +1,4 @@
-import toAasm from "avm1-asm/to-aasm.js";
+import { toAasm } from "avm1-asm/lib/to-aasm.js";
 import { parseCfg } from "avm1-parser";
 import { ActionType } from "avm1-types/lib/action-type.js";
 import { $CatchTarget } from "avm1-types/lib/catch-target.js";
@@ -57,7 +57,7 @@ describe("avm1", function () {
       await writeTextFile(sysPath.join(sample.root, "local-cfg.ts.json"), `${actualCfgJson}\n`);
 
       try {
-        const aasm1: string = toAasm.toAasm(actualCfg);
+        const aasm1: string = toAasm(actualCfg);
         await writeTextFile(sysPath.join(sample.root, "local-main.ts.aasm1"), `${aasm1}\n`);
       } catch (e) {
         console.warn(e);
