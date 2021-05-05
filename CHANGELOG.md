@@ -2,6 +2,14 @@
 
 - **[Breaking change]** Update to `avm1-types@0.12`.
 
+## TypeScript
+
+- **[Internal]** Update to Yarn 2.
+
+## Rust
+
+- **[Feature]** First release.
+
 # 0.11.0 (2020-09-07)
 
 - **[Breaking change]** Update to `avm1-types@0.11`.
