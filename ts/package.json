@@ -2,17 +2,34 @@
   "name": "avm1-emitter",
   "version": "0.12.0",
   "description": "AVM1 files emitter",
-  "license": "MIT",
+  "licenses": [
+    {
+      "type": "AGPL-3.0-or-later",
+      "url": "https://spdx.org/licenses/AGPL-3.0-or-later.html"
+    }
+  ],
   "keywords": [
     "swf",
     "ast",
     "avm1",
     "emitter"
   ],
-  "homepage": "https://github.com/open-flash/avm1-types",
+  "homepage": "https://github.com/open-flash/avm1-emitter",
   "repository": {
     "type": "git",
     "url": "git@github.com:open-flash/avm1-emitter.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.js",
+    "./*": "./lib/*.js"
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./lib/*"
+      ]
+    }
   },
   "scripts": {
     "clean": "rimraf \"./@(lib|test)\"",
@@ -27,38 +44,31 @@
     "node": ">=14.13.1"
   },
   "dependencies": {
-    "@open-flash/stream": "^0.4.0",
-    "avm1-types": "^0.12.0",
+    "@open-flash/stream": "^0.5.0",
+    "avm1-types": "^0.13.0",
     "incident": "^3.2.1",
     "semantic-types": "^0.1.1"
   },
   "devDependencies": {
-    "@types/chai": "^4.2.17",
-    "@types/mocha": "^8.2.2",
-    "@types/node": "^15.0.2",
-    "@typescript-eslint/eslint-plugin": "^4.22.1",
-    "@typescript-eslint/parser": "^4.22.1",
+    "@types/chai": "^4.2.21",
+    "@types/mocha": "^9.0.0",
+    "@types/node": "^16.4.1",
+    "@typescript-eslint/eslint-plugin": "^4.28.4",
+    "@typescript-eslint/parser": "^4.28.4",
     "avm1-asm": "^0.12.0",
-    "avm1-parser": "^0.12.0",
+    "avm1-parser": "^0.13.0",
     "chai": "^4.3.4",
-    "eslint": "^7.25.0",
+    "eslint": "^7.31.0",
     "eslint-plugin-simple-import-sort": "^7.0.0",
     "furi": "^2.0.0",
-    "kryo-json": "^0.11.2",
-    "mocha": "^8.3.2",
+    "kryo-json": "^0.13.0",
+    "mocha": "^9.0.2",
     "rimraf": "^3.0.2",
-    "swf-parser": "^0.12.0",
-    "typescript": "^4.2.4"
+    "swf-parser": "^0.13.0",
+    "typescript": "^4.3.5"
   },
-  "type": "module",
-  "exports": {
-    ".": "./lib/index.js",
-    "./lib/": "./lib/"
-  },
-  "main": "./lib/index.js",
-  "module": "./lib/index.js",
-  "types": "./lib/index.d.ts",
   "files": [
-    "./lib/"
+    "./lib/**/*.(js|map|ts)",
+    "./src/lib/**/*.ts"
   ]
 }
