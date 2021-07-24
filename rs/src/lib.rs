@@ -78,7 +78,7 @@ impl WriteInfo {
     }
   }
 
-  pub fn extend(&mut self, wi: Self) -> () {
+  pub fn extend(&mut self, wi: Self) {
     self.jumps.extend(wi.jumps.into_iter());
     self.blocks.extend(wi.blocks.into_iter());
   }
@@ -355,6 +355,7 @@ fn write_raw_define_function2<W: io::Write>(writer: &mut W, value: &raw::DefineF
   emit_le_u16(writer, value.parameters.len().try_into().unwrap())?;
   emit_u8(writer, value.register_count)?;
 
+  #[allow(clippy::identity_op)]
   let flags: u16 = 0
     | (if value.preload_this { 1 << 0 } else { 0 })
     | (if value.suppress_this { 1 << 1 } else { 0 })
@@ -386,6 +387,7 @@ fn write_raw_get_url2<W: io::Write>(writer: &mut W, value: &raw::GetUrl2) -> io:
     GetUrl2Method::Get => 1,
     GetUrl2Method::Post => 2,
   };
+  #[allow(clippy::identity_op)]
   let flags: u8 = 0
     | (if value.load_variables { 1 << 0 } else { 0 })
     | (if value.load_target { 1 << 1 } else { 0 })
@@ -400,7 +402,11 @@ fn write_raw_goto_frame<W: io::Write>(writer: &mut W, value: &raw::GotoFrame) ->
 
 fn write_raw_goto_frame2<W: io::Write>(writer: &mut W, value: &raw::GotoFrame2) -> io::Result<()> {
   let has_scene_bias = value.scene_bias != 0;
-  let flags: u8 = 0 | (if value.play { 1 << 0 } else { 0 }) | (if has_scene_bias { 1 << 1 } else { 0 });
+  #[allow(clippy::identity_op)]
+  let flags: u8 = 0
+    // TODO: Find a better way than this comment to prevent rustfmt from changing the layout of this assignment
+    | (if value.play { 1 << 0 } else { 0 })
+    | (if has_scene_bias { 1 << 1 } else { 0 });
   // Skip bits [2, 7]
   emit_u8(writer, flags)?;
   if has_scene_bias {
@@ -487,6 +493,7 @@ fn write_raw_try<W: io::Write>(writer: &mut W, value: &raw::Try) -> io::Result<(
     .as_ref()
     .map(|c| matches!(c.target, CatchTarget::Register(_)))
     .unwrap_or_default();
+  #[allow(clippy::identity_op)]
   let flags: u8 = 0
     | (if value.catch.is_some() { 1 << 0 } else { 0 })
     | (if value.finally.is_some() { 1 << 1 } else { 0 })
@@ -600,6 +607,7 @@ fn write_try(
     .as_ref()
     .map(|c| matches!(c.target, CatchTarget::Register(_)))
     .unwrap_or_default();
+  #[allow(clippy::identity_op)]
   let flags: u8 = 0
     | (if flow.catch.is_some() { 1 << 0 } else { 0 })
     | (if flow.finally.is_some() { 1 << 1 } else { 0 })
