@@ -1,15 +1,15 @@
 import * as stream from "@open-flash/stream";
 import { WritableByteStream as ByteStream } from "@open-flash/stream";
-import { ActionType } from "avm1-types/lib/action-type.js";
-import { CatchTarget } from "avm1-types/lib/catch-target.js";
-import { CatchTargetType } from "avm1-types/lib/catch-targets/_type.js";
-import { GetUrl2Method } from "avm1-types/lib/get-url2-method.js";
-import { PushValueType } from "avm1-types/lib/push-value-type.js";
-import { PushValue } from "avm1-types/lib/push-value.js";
-import { Action as RawAction } from "avm1-types/lib/raw/action.js";
-import * as actions from "avm1-types/lib/raw/actions/index.js";
+import { ActionType } from "avm1-types/action-type";
+import { CatchTarget } from "avm1-types/catch-target";
+import { CatchTargetType } from "avm1-types/catch-targets/_type";
+import { GetUrl2Method } from "avm1-types/get-url2-method";
+import { PushValue } from "avm1-types/push-value";
+import { PushValueType } from "avm1-types/push-value-type";
+import { Action as RawAction } from "avm1-types/raw/action";
+import * as actions from "avm1-types/raw/actions/index";
 import incident from "incident";
-import { Uint16, Uint2, Uint8, UintSize } from "semantic-types";
+import { Uint2, Uint8, Uint16, UintSize } from "semantic-types";
 
 export interface ActionHeader {
   actionCode: Uint8;

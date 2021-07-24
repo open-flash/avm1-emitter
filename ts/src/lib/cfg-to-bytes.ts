@@ -1,17 +1,15 @@
-// tslint:disable:restrict-plus-operands
-
 import * as stream from "@open-flash/stream";
 import { WritableByteStream } from "@open-flash/stream";
-import { ActionType } from "avm1-types/lib/action-type.js";
-import { DefineFunction as CfgDefineFunction } from "avm1-types/lib/cfg/actions/define-function.js";
-import { DefineFunction2 as CfgDefineFunction2 } from "avm1-types/lib/cfg/actions/define-function2.js";
-import { CfgBlock } from "avm1-types/lib/cfg/cfg-block.js";
-import { CfgFlowType } from "avm1-types/lib/cfg/cfg-flow-type.js";
-import { CfgFlow } from "avm1-types/lib/cfg/cfg-flow.js";
-import { CfgLabel, NullableCfgLabel } from "avm1-types/lib/cfg/cfg-label.js";
-import { Cfg } from "avm1-types/lib/cfg/cfg.js";
-import { Try as RawTry } from "avm1-types/lib/raw/actions/try.js";
-import { CatchBlock as RawCatchBlock } from "avm1-types/lib/raw/catch-block.js";
+import { ActionType } from "avm1-types/action-type";
+import { DefineFunction as CfgDefineFunction } from "avm1-types/cfg/actions/define-function";
+import { DefineFunction2 as CfgDefineFunction2 } from "avm1-types/cfg/actions/define-function2";
+import { Cfg } from "avm1-types/cfg/cfg";
+import { CfgBlock } from "avm1-types/cfg/cfg-block";
+import { CfgFlow } from "avm1-types/cfg/cfg-flow";
+import { CfgFlowType } from "avm1-types/cfg/cfg-flow-type";
+import { CfgLabel, NullableCfgLabel } from "avm1-types/cfg/cfg-label";
+import { Try as RawTry } from "avm1-types/raw/actions/try";
+import { CatchBlock as RawCatchBlock } from "avm1-types/raw/catch-block";
 import { UintSize } from "semantic-types";
 
 import { emitAction } from "./emitters/avm1.js";
