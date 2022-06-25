@@ -345,7 +345,7 @@ fn write_raw_define_function<W: io::Write>(writer: &mut W, value: &raw::DefineFu
   emit_c_string(writer, &value.name)?;
   emit_le_u16(writer, value.parameters.len().try_into().unwrap())?;
   for parameter in value.parameters.iter() {
-    emit_c_string(writer, &parameter)?;
+    emit_c_string(writer, parameter)?;
   }
   emit_le_u16(writer, value.body_size)
 }
@@ -355,18 +355,7 @@ fn write_raw_define_function2<W: io::Write>(writer: &mut W, value: &raw::DefineF
   emit_le_u16(writer, value.parameters.len().try_into().unwrap())?;
   emit_u8(writer, value.register_count)?;
 
-  #[allow(clippy::identity_op)]
-  let flags: u16 = 0
-    | (if value.preload_this { 1 << 0 } else { 0 })
-    | (if value.suppress_this { 1 << 1 } else { 0 })
-    | (if value.preload_arguments { 1 << 2 } else { 0 })
-    | (if value.suppress_arguments { 1 << 3 } else { 0 })
-    | (if value.preload_super { 1 << 4 } else { 0 })
-    | (if value.suppress_super { 1 << 5 } else { 0 })
-    | (if value.preload_root { 1 << 6 } else { 0 })
-    | (if value.preload_parent { 1 << 7 } else { 0 })
-    | (if value.preload_global { 1 << 8 } else { 0 });
-  // Skip bits [9, 15]
+  let flags: u16 = value.flags.bits();
   emit_le_u16(writer, flags)?;
 
   for parameter in value.parameters.iter() {
@@ -446,7 +435,7 @@ fn write_raw_push<W: io::Write>(writer: &mut W, value: &raw::Push) -> io::Result
       },
       PushValue::String(v) => {
         emit_u8(writer, 0)?;
-        emit_c_string(writer, &v)?;
+        emit_c_string(writer, v)?;
       }
       PushValue::Sint32(v) => {
         emit_u8(writer, 7)?;
@@ -540,11 +529,11 @@ fn write_define_function(writer: &mut PatchableBufWriter, value: &cfg::DefineFun
   write_hard_cfg(&mut body, &value.body, false)?;
   write_raw_action(
     writer,
-    &raw::Action::DefineFunction(raw::DefineFunction {
+    &raw::Action::DefineFunction(Box::new(raw::DefineFunction {
       name: value.name.clone(),
       parameters: value.parameters.clone(),
       body_size: body.len().try_into().unwrap(),
-    }),
+    })),
   )?;
   writer.write_all(&body.complete())
 }
@@ -554,21 +543,13 @@ fn write_define_function2(writer: &mut PatchableBufWriter, value: &cfg::DefineFu
   write_hard_cfg(&mut body, &value.body, false)?;
   write_raw_action(
     writer,
-    &raw::Action::DefineFunction2(raw::DefineFunction2 {
+    &raw::Action::DefineFunction2(Box::new(raw::DefineFunction2 {
       name: value.name.clone(),
       register_count: value.register_count,
-      preload_this: value.preload_this,
-      suppress_this: value.suppress_this,
-      preload_arguments: value.preload_arguments,
-      suppress_arguments: value.suppress_arguments,
-      preload_super: value.preload_super,
-      suppress_super: value.suppress_super,
-      preload_root: value.preload_root,
-      preload_parent: value.preload_parent,
-      preload_global: value.preload_global,
+      flags: value.flags,
       parameters: value.parameters.clone(),
       body_size: body.len().try_into().unwrap(),
-    }),
+    })),
   )?;
   writer.write_all(&body.complete())
 }
@@ -817,15 +798,7 @@ mod tests {
       (cfg::Action::DefineFunction2(l), cfg::Action::DefineFunction2(r)) => {
         l.name == r.name
           && l.register_count == r.register_count
-          && l.preload_this == r.preload_this
-          && l.suppress_this == r.suppress_this
-          && l.preload_arguments == r.preload_arguments
-          && l.suppress_arguments == r.suppress_arguments
-          && l.preload_super == r.preload_super
-          && l.suppress_super == r.suppress_super
-          && l.preload_root == r.preload_root
-          && l.preload_parent == r.preload_parent
-          && l.preload_global == r.preload_global
+          && l.flags == r.flags
           && l.parameters == r.parameters
           && hard_cfg_equivalent(&l.body, &r.body)
       }
