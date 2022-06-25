@@ -5,9 +5,10 @@
 
 # AVM1 Emitter
 
-[![crates.io](https://img.shields.io/crates/v/avm1-emitter.svg)](https://crates.io/crates/avm1-emitter)
-[![GitHub repository](https://img.shields.io/badge/Github-open--flash%2Favm1--emitter-blue.svg)](https://github.com/open-flash/avm1-emitter)
-[![Build status](https://img.shields.io/travis/com/open-flash/avm1-emitter/master.svg)](https://travis-ci.com/open-flash/avm1-emitter)
+[![GitHub repository](https://img.shields.io/badge/GitHub-open--flash%2Favm1--emitter-informational.svg)](https://github.com/open-flash/avm1-emitter)
+<a href="https://crates.io/crates/avm1-emitter"><img src="https://img.shields.io/crates/v/avm1-emitter" alt="crates.io crate"/></a>
+<a href="https://github.com/open-flash/avm1-emitter/actions/workflows/check-rs.yml"><img src="https://img.shields.io/github/workflow/status/open-flash/avm1-emitter/check-rs/main"  alt="Rust checks status"/></a>
+<a href="https://docs.rs/avm1-emitter"><img src="https://img.shields.io/badge/docs.rs-avm1--emitter-informational" alt="docs.rs/avm1-emitter"></a>
 
 AVM1 emitter implemented in Rust.
 Converts [`avm1-types` control flow graphs][avm1-types] to bytes.
