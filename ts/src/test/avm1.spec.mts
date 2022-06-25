@@ -16,9 +16,9 @@ import { JSON_VALUE_WRITER } from "kryo-json/json-value-writer";
 import sysPath from "path";
 import { UintSize } from "semantic-types";
 
-import { cfgToBytes } from "../lib/index.js";
-import meta from "./meta.js";
-import { readTextFile, writeFile, writeTextFile } from "./utils.js";
+import { cfgToBytes } from "../lib/index.mjs";
+import meta from "./meta.mjs";
+import { readTextFile, writeFile, writeTextFile } from "./utils.mjs";
 
 const PROJECT_ROOT: string = sysPath.join(meta.dirname, "..");
 const REPO_ROOT: string = sysPath.join(PROJECT_ROOT, "..");

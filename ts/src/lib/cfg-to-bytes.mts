@@ -12,7 +12,7 @@ import { Try as RawTry } from "avm1-types/raw/actions/try";
 import { CatchBlock as RawCatchBlock } from "avm1-types/raw/catch-block";
 import { UintSize } from "semantic-types";
 
-import { emitAction } from "./emitters/avm1.js";
+import { emitAction } from "./emitters/avm1.mjs";
 
 /**
  * Size of the offset in `If` and `Jump` actions (in bytes).
